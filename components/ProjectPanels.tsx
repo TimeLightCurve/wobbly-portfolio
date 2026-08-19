@@ -120,11 +120,14 @@ export function ProjectPanels({ geometry, projects }: { geometry: THREE.BufferGe
 		const halfSize = new THREE.Vector3()
 		bounds.getSize(halfSize).multiplyScalar(0.5)
 		const faceOffset = 0.025
+		const panelOffset = Math.min(halfSize.x, halfSize.z) * 0.02
 
 		return FACE_NORMALS.map((normal) => {
 			const position = center.clone()
+			const tangent = new THREE.Vector3(normal.z, 0, -normal.x)
 			position.x += normal.x * (halfSize.x + faceOffset)
 			position.z += normal.z * (halfSize.z + faceOffset)
+			position.addScaledVector(tangent, -panelOffset)
 
 			return {
 				position: position.toArray() as [number, number, number],
