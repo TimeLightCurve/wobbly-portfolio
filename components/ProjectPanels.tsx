@@ -13,12 +13,19 @@ type ProjectFaceProps = {
 	rotation: [number, number, number]
 }
 
+const FACE_NORMALS = [
+	new THREE.Vector3(0, 0, 1),
+	new THREE.Vector3(1, 0, 0),
+	new THREE.Vector3(0, 0, -1),
+	new THREE.Vector3(-1, 0, 0),
+] as const
+
 function ProjectFace({ project, position, rotation }: ProjectFaceProps) {
 	return (
 		<group position={position} rotation={rotation}>
 			<Html
 				transform
-				distanceFactor={5}
+				distanceFactor={1.5}
 				style={{ pointerEvents: 'none' }}
 			>
 				<AnimatePresence initial={false}>
@@ -77,14 +84,20 @@ export function ProjectPanels({ geometry, projects }: { geometry: THREE.BufferGe
 		const center = new THREE.Vector3()
 		bounds.getCenter(center)
 		center.y *= 0.25
-		const offset = 0.03
+		const halfSize = new THREE.Vector3()
+		bounds.getSize(halfSize).multiplyScalar(0.5)
+		const faceOffset = 0.025
 
-		return [
-			{ position: [center.x, center.y, bounds.max.z + offset], rotation: [0, 0, 0] },
-			{ position: [bounds.max.x + offset, center.y, center.z], rotation: [0, Math.PI / 2, 0] },
-			{ position: [center.x, center.y, bounds.min.z - offset], rotation: [0, Math.PI, 0] },
-			{ position: [bounds.min.x - offset, center.y, center.z], rotation: [0, -Math.PI / 2, 0] },
-		] satisfies Array<{ position: [number, number, number], rotation: [number, number, number] }>
+		return FACE_NORMALS.map((normal) => {
+			const position = center.clone()
+			position.x += normal.x * (halfSize.x + faceOffset)
+			position.z += normal.z * (halfSize.z + faceOffset)
+
+			return {
+				position: position.toArray() as [number, number, number],
+				rotation: [0, Math.atan2(normal.x, normal.z), 0] as [number, number, number],
+			}
+		})
 	}, [geometry])
 
 	return (

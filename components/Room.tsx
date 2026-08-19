@@ -123,25 +123,29 @@ export const COLUMN_PIVOT_Z = 0.03
 export const COLUMN_MESH_OFFSET_X = 0.21
 export const COLUMN_MESH_OFFSET_Y = 1.3725
 export const COLUMN_MESH_OFFSET_Z = -0.03
-const DRAG_DISTANCE = 120
+const QUARTER_TURN = Math.PI / 2
+const DRAG_DISTANCE_PER_TURN = 120
+const MIN_DRAG_DISTANCE = 28
+const HALF_TURN_DISTANCE = 190
+const HALF_TURN_VELOCITY = 1.1
 
 type PointerCaptureTarget = {
   setPointerCapture: (pointerId: number) => void
   releasePointerCapture: (pointerId: number) => void
 }
 
-type ColumnSectionProps = {
+type ColumnSystemProps = {
   geometry: THREE.BufferGeometry
   edges: THREE.EdgesGeometry
-  centerY: number
-  columnIndex: 0 | 1
   onAnchorChange: (columnIndex: 0 | 1, x: number, z: number) => void
 }
 
-function ColumnSection({ geometry, edges, centerY, columnIndex, onAnchorChange }: ColumnSectionProps) {
+const COLUMN_CENTER_Y = [-2.8725, -5.5725] as const
+
+function ColumnSystem({ geometry, edges, onAnchorChange }: ColumnSystemProps) {
   const columns = useRef<THREE.Group>(null)
-  const columnCenter = useRef<THREE.Group>(null)
-  const anchorPosition = useRef(new THREE.Vector3())
+  const columnCenters = useRef<Array<THREE.Group | null>>([])
+  const anchorPositions = useRef([new THREE.Vector3(), new THREE.Vector3()])
   const geometryCenter = useMemo(() => {
     geometry.computeBoundingBox()
     const center = new THREE.Vector3()
@@ -150,73 +154,110 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, onAnchorChange }
     return center
   }, [geometry])
   const targetRotation = useRef(0)
+  const dragOriginRotation = useRef(0)
+  const dragPreviewRotation = useRef(0)
   const dragStartX = useRef(0)
+  const dragStartTime = useRef(0)
+  const lastPointerX = useRef(0)
+  const lastPointerTime = useRef(0)
   const isDragging = useRef(false)
 
   const rotateFromDrag = (event: ThreeEvent<PointerEvent>) => {
     if (!isDragging.current) return
 
     const distance = event.nativeEvent.clientX - dragStartX.current
-    if (Math.abs(distance) < DRAG_DISTANCE) return
-
-    const direction = distance > 0 ? 1 : -1
-    targetRotation.current += direction * Math.PI / 2
-    dragStartX.current = event.nativeEvent.clientX
+    dragPreviewRotation.current = dragOriginRotation.current + (distance / DRAG_DISTANCE_PER_TURN) * QUARTER_TURN
+    lastPointerX.current = event.nativeEvent.clientX
+    lastPointerTime.current = event.nativeEvent.timeStamp
   }
 
   const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation()
     isDragging.current = true
     dragStartX.current = event.nativeEvent.clientX
+    dragStartTime.current = event.nativeEvent.timeStamp
+    lastPointerX.current = event.nativeEvent.clientX
+    lastPointerTime.current = event.nativeEvent.timeStamp
+    dragOriginRotation.current = targetRotation.current
+    dragPreviewRotation.current = targetRotation.current
     const pointerTarget = event.target as unknown as PointerCaptureTarget
     pointerTarget.setPointerCapture(event.pointerId)
   }
 
   const handlePointerUp = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation()
+    const distance = event.nativeEvent.clientX - dragStartX.current
+    const totalDuration = Math.max(event.nativeEvent.timeStamp - dragStartTime.current, 1)
+    const sampleDuration = Math.max(event.nativeEvent.timeStamp - lastPointerTime.current, 1)
+    const sampledVelocity = (event.nativeEvent.clientX - lastPointerX.current) / sampleDuration
+    const averageVelocity = distance / totalDuration
+    const velocity = Math.abs(sampledVelocity) > Math.abs(averageVelocity) ? sampledVelocity : averageVelocity
+
+    if (Math.abs(distance) >= MIN_DRAG_DISTANCE) {
+      const direction = Math.sign(distance)
+      const turns = Math.abs(distance) >= HALF_TURN_DISTANCE || Math.abs(velocity) >= HALF_TURN_VELOCITY ? 2 : 1
+      targetRotation.current = dragOriginRotation.current + direction * turns * QUARTER_TURN
+    } else {
+      targetRotation.current = dragOriginRotation.current
+    }
+
     isDragging.current = false
     const pointerTarget = event.target as unknown as PointerCaptureTarget
     pointerTarget.releasePointerCapture(event.pointerId)
   }
 
   const handlePointerCancel = () => {
+    targetRotation.current = dragOriginRotation.current
     isDragging.current = false
   }
 
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     if (!columns.current) return
 
-    columns.current.rotation.y = THREE.MathUtils.damp(columns.current.rotation.y, targetRotation.current, 4, delta)
+    const rotation = isDragging.current ? dragPreviewRotation.current : targetRotation.current
+    columns.current.rotation.y = THREE.MathUtils.damp(columns.current.rotation.y, rotation, isDragging.current ? 18 : 7, delta)
     columns.current.updateWorldMatrix(true, false)
-    if (columnCenter.current) {
-      anchorPosition.current.copy(geometryCenter)
-      columnCenter.current.localToWorld(anchorPosition.current)
-    }
-    onAnchorChange(columnIndex, anchorPosition.current.x, anchorPosition.current.z)
+
+    columnCenters.current.forEach((columnCenter, columnIndex) => {
+      if (!columnCenter) return
+      const anchorPosition = anchorPositions.current[columnIndex]
+      anchorPosition.copy(geometryCenter)
+      columnCenter.localToWorld(anchorPosition)
+      onAnchorChange(columnIndex as 0 | 1, anchorPosition.x, anchorPosition.z)
+    })
   })
 
   return (
     <>
-      <mesh
-        position={[1.2, centerY, 0.]}
-        rotation={[0, Math.PI / 2, 0]}
-        onPointerDown={handlePointerDown}
-        onPointerMove={rotateFromDrag}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerCancel}
-        onLostPointerCapture={handlePointerCancel}
-      >
-        <planeGeometry args={[4.8, 3.8]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-      <group ref={columns} position={[COLUMN_PIVOT_X, centerY, COLUMN_PIVOT_Z]}>
-        <group ref={columnCenter} position={[COLUMN_MESH_OFFSET_X, COLUMN_MESH_OFFSET_Y, COLUMN_MESH_OFFSET_Z]}>
-          <mesh geometry={geometry} castShadow receiveShadow scale={[1, 0.25, 1]}>
-            <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
-          </mesh>
-          <InkEdges edges={edges} scale={[1, 0.25, 1]} />
-          <ProjectPanels geometry={geometry} projects={projects} />
-        </group>
+      {COLUMN_CENTER_Y.map((centerY) => (
+        <mesh
+          key={centerY}
+          position={[1.2, centerY, 0]}
+          rotation={[0, Math.PI / 2, 0]}
+          onPointerDown={handlePointerDown}
+          onPointerMove={rotateFromDrag}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          onLostPointerCapture={handlePointerCancel}
+        >
+          <planeGeometry args={[4.8, 3.8]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      ))}
+      <group ref={columns} position={[COLUMN_PIVOT_X, 0, COLUMN_PIVOT_Z]}>
+        {COLUMN_CENTER_Y.map((centerY, columnIndex) => (
+          <group
+            key={centerY}
+            ref={(group) => { columnCenters.current[columnIndex] = group }}
+            position={[COLUMN_MESH_OFFSET_X, centerY + COLUMN_MESH_OFFSET_Y, COLUMN_MESH_OFFSET_Z]}
+          >
+            <mesh geometry={geometry} castShadow receiveShadow scale={[1, 0.25, 1]}>
+              <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
+            </mesh>
+            <InkEdges edges={edges} scale={[1, 0.25, 1]} />
+            <ProjectPanels geometry={geometry} projects={projects} />
+          </group>
+        ))}
       </group>
     </>
   )
@@ -235,8 +276,7 @@ export function Room({ onAnchorChange, ...props }: JSX.IntrinsicElements['group'
           <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
         </mesh>
         <InkEdges edges={roomEdges} scale={[1, 1, 1]} />
-        <ColumnSection geometry={nodes.columns.geometry} edges={columnsEdges} centerY={-2.8725} columnIndex={0} onAnchorChange={onAnchorChange} />
-        <ColumnSection geometry={nodes.columns.geometry} edges={columnsEdges} centerY={-5.5725} columnIndex={1} onAnchorChange={onAnchorChange} />
+        <ColumnSystem geometry={nodes.columns.geometry} edges={columnsEdges} onAnchorChange={onAnchorChange} />
       </group>
     </group>
   )
