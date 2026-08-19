@@ -118,11 +118,7 @@ function InkEdges({ edges, scale, position }: { edges: THREE.EdgesGeometry, scal
   )
 }
 
-export const COLUMN_PIVOT_X = -0.21
-export const COLUMN_PIVOT_Z = 0.03
-export const COLUMN_MESH_OFFSET_X = 0.21
 export const COLUMN_MESH_OFFSET_Y = 1.3725
-export const COLUMN_MESH_OFFSET_Z = -0.03
 const QUARTER_TURN = Math.PI / 2
 const DRAG_DISTANCE_PER_TURN = 120
 const MIN_DRAG_DISTANCE = 28
@@ -244,12 +240,12 @@ function ColumnSystem({ geometry, edges, onAnchorChange }: ColumnSystemProps) {
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       ))}
-      <group ref={columns} position={[COLUMN_PIVOT_X, 0, COLUMN_PIVOT_Z]}>
+      <group ref={columns} position={[geometryCenter.x, 0, geometryCenter.z]}>
         {COLUMN_CENTER_Y.map((centerY, columnIndex) => (
           <group
             key={centerY}
             ref={(group) => { columnCenters.current[columnIndex] = group }}
-            position={[COLUMN_MESH_OFFSET_X, centerY + COLUMN_MESH_OFFSET_Y, COLUMN_MESH_OFFSET_Z]}
+            position={[-geometryCenter.x, centerY + COLUMN_MESH_OFFSET_Y, -geometryCenter.z]}
           >
             <mesh geometry={geometry} castShadow receiveShadow scale={[1, 0.25, 1]}>
               <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
