@@ -119,6 +119,7 @@ function InkEdges({ edges, scale, position }: { edges: THREE.EdgesGeometry, scal
 }
 
 export const COLUMN_MESH_OFFSET_Y = 1.3725
+export const COLUMN_MESH_SCALE_Y = 0.25
 export const COLUMN_SPACING = 2.7
 export const PROJECTS_PER_COLUMN = 4
 export const getProjectColumnCount = (projectCount: number) => Math.floor(projectCount / PROJECTS_PER_COLUMN) + 1
@@ -144,9 +145,10 @@ type ColumnSectionProps = {
   columnIndex: number
   sectionProjects: Project[]
   onAnchorChange: (columnIndex: number, x: number, z: number) => void
+	onColumnMotion: (velocity: number, direction: number) => void
 }
 
-function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects, onAnchorChange }: ColumnSectionProps) {
+function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects, onAnchorChange, onColumnMotion }: ColumnSectionProps) {
   const columns = useRef<THREE.Group>(null)
   const columnCenter = useRef<THREE.Group>(null)
   const anchorPosition = useRef(new THREE.Vector3())
@@ -154,7 +156,7 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
     geometry.computeBoundingBox()
     const center = new THREE.Vector3()
     geometry.boundingBox?.getCenter(center)
-    center.y *= 0.25
+    center.y *= COLUMN_MESH_SCALE_Y
     return center
   }, [geometry])
   const targetRotation = useRef(0)
@@ -201,6 +203,10 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
       const direction = Math.sign(distance)
       const turns = Math.abs(distance) >= HALF_TURN_DISTANCE || Math.abs(velocity) >= HALF_TURN_VELOCITY ? 2 : 1
       targetRotation.current = dragOriginRotation.current + direction * turns * QUARTER_TURN
+		const distanceStrength = THREE.MathUtils.clamp(Math.abs(distance) / HALF_TURN_DISTANCE, 0, 1)
+		const velocityStrength = 1 - Math.exp(-Math.abs(velocity) * 1.5)
+		const rotationStrength = THREE.MathUtils.clamp(distanceStrength * 0.7 + velocityStrength * 0.3, 0, 1)
+		onColumnMotion(rotationStrength, direction)
     } else {
       targetRotation.current = dragOriginRotation.current
     }
@@ -244,18 +250,18 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
       </mesh>
       <group ref={columns} position={[COLUMN_PIVOT_X, centerY, COLUMN_PIVOT_Z]}>
         <group ref={columnCenter} position={[COLUMN_MESH_OFFSET_X, COLUMN_MESH_OFFSET_Y, COLUMN_MESH_OFFSET_Z]}>
-          <mesh geometry={geometry} castShadow receiveShadow scale={[1, 0.25, 1]}>
+          <mesh geometry={geometry} castShadow receiveShadow scale={[1, COLUMN_MESH_SCALE_Y, 1]}>
             <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
           </mesh>
-          <InkEdges edges={edges} scale={[1, 0.25, 1]} />
-          <ProjectPanels geometry={geometry} projects={sectionProjects} />
+          <InkEdges edges={edges} scale={[1, COLUMN_MESH_SCALE_Y, 1]} />
+          <ProjectPanels geometry={geometry} projects={sectionProjects} scaleY={COLUMN_MESH_SCALE_Y} />
         </group>
       </group>
     </>
   )
 }
 
-function ColumnSystem({ geometry, edges, onAnchorChange }: Pick<ColumnSectionProps, 'geometry' | 'edges' | 'onAnchorChange'>) {
+function ColumnSystem({ geometry, edges, onAnchorChange, onColumnMotion }: Pick<ColumnSectionProps, 'geometry' | 'edges' | 'onAnchorChange' | 'onColumnMotion'>) {
   const projectSections = useMemo(() => Array.from(
     { length: getProjectColumnCount(projects.length) },
     (_, columnIndex) => projects.slice(
@@ -273,11 +279,15 @@ function ColumnSystem({ geometry, edges, onAnchorChange }: Pick<ColumnSectionPro
       columnIndex={columnIndex}
       sectionProjects={sectionProjects}
       onAnchorChange={onAnchorChange}
+		onColumnMotion={onColumnMotion}
     />
   ))
 }
 
-export function Room({ onAnchorChange, ...props }: JSX.IntrinsicElements['group'] & { onAnchorChange: (columnIndex: number, x: number, z: number) => void }) {
+export function Room({ onAnchorChange, onColumnMotion, ...props }: JSX.IntrinsicElements['group'] & {
+	onAnchorChange: (columnIndex: number, x: number, z: number) => void
+	onColumnMotion: (velocity: number, direction: number) => void
+}) {
   const { nodes, materials } = useGLTF('/room2.glb') as unknown as GLTFResult
 
   const roomEdges = useMemo(() => toInkEdges(nodes.room.geometry), [nodes.room.geometry])
@@ -290,7 +300,7 @@ export function Room({ onAnchorChange, ...props }: JSX.IntrinsicElements['group'
           <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
         </mesh>
         <InkEdges edges={roomEdges} scale={[1, 1, 1]} />
-        <ColumnSystem geometry={nodes.columns.geometry} edges={columnsEdges} onAnchorChange={onAnchorChange} />
+        <ColumnSystem geometry={nodes.columns.geometry} edges={columnsEdges} onAnchorChange={onAnchorChange} onColumnMotion={onColumnMotion} />
       </group>
     </group>
   )

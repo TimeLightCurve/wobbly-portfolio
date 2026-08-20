@@ -12,6 +12,9 @@ type ProjectFaceProps = {
 	project: Project
 	position: [number, number, number]
 	rotation: [number, number, number]
+	width: number
+	height: number
+	channelWidth: number
 }
 
 const FACE_NORMALS = [
@@ -21,27 +24,32 @@ const FACE_NORMALS = [
 	new THREE.Vector3(-1, 0, 0),
 ] as const
 
-const FACE_SHOW_THRESHOLD = 0.88
+const FACE_SHOW_THRESHOLD = 0.68
 const FACE_HIDE_THRESHOLD = 0.80
-const FACE_SHOW_DELAY = 0.88
-const FACE_SHOW_DURATION = 0.8
+const FACE_SHOW_DELAY = 0.0
+const FACE_SHOW_DURATION = 0.3
 const FACE_HIDE_DURATION = 0.1
+const FACE_SURFACE_GAP = 0.006
 
-function ProjectFace({ project, position, rotation }: ProjectFaceProps) {
+const HTML_DISTANCE_FACTOR = 1
+const CSS_PIXELS_PER_WORLD_UNIT = 400 / HTML_DISTANCE_FACTOR
+
+function ProjectFace({ project, position, rotation, width, height, channelWidth }: ProjectFaceProps) {
 	const face = useRef<THREE.Group>(null)
-	const panel = useRef<HTMLDivElement>(null)
-	const facingCamera = useRef(false)
 	const faceVisibility = useRef(false)
 	const [isVisible, setIsVisible] = useState(false)
 	const worldQuaternion = useMemo(() => new THREE.Quaternion(), [])
-	const cameraQuaternion = useMemo(() => new THREE.Quaternion(), [])
-	const cameraSpaceNormal = useMemo(() => new THREE.Vector3(), [])
 	const facePosition = useMemo(() => new THREE.Vector3(), [])
 	const faceNormal = useMemo(() => new THREE.Vector3(), [])
 	const cameraDirection = useMemo(() => new THREE.Vector3(), [])
+	const panelSize = useMemo(() => ({
+		width: width * CSS_PIXELS_PER_WORLD_UNIT,
+		height: height * CSS_PIXELS_PER_WORLD_UNIT,
+		gap: channelWidth * CSS_PIXELS_PER_WORLD_UNIT,
+	}), [channelWidth, height, width])
 
 	useFrame(({ camera }) => {
-		if (!face.current || !panel.current) return
+		if (!face.current) return
 
 		face.current.getWorldPosition(facePosition)
 		face.current.getWorldQuaternion(worldQuaternion)
@@ -52,90 +60,76 @@ function ProjectFace({ project, position, rotation }: ProjectFaceProps) {
 			? facingScore > FACE_HIDE_THRESHOLD
 			: facingScore > FACE_SHOW_THRESHOLD
 
-		if (facingCamera.current !== nextIsVisible) {
-			facingCamera.current = nextIsVisible
+		if (faceVisibility.current !== nextIsVisible) {
 			faceVisibility.current = nextIsVisible
 			setIsVisible(nextIsVisible)
 		}
-
-		camera.getWorldQuaternion(cameraQuaternion).invert()
-		cameraSpaceNormal
-			.set(0, 0, 1)
-			.applyQuaternion(worldQuaternion)
-			.applyQuaternion(cameraQuaternion)
-			.normalize()
-
-		const yaw = Math.atan2(cameraSpaceNormal.x, cameraSpaceNormal.z)
-		const pitch = -Math.asin(THREE.MathUtils.clamp(cameraSpaceNormal.y, -1, 1))
-		panel.current.style.transform = `perspective(80000px) rotateX(${pitch}rad) rotateY(${yaw}rad) `
 	})
 
 	return (
 		<group ref={face} position={position} rotation={rotation}>
 			<Html
-				center
-				distanceFactor={0.45}
+				transform
+				distanceFactor={HTML_DISTANCE_FACTOR}
+				pointerEvents="none"
+				wrapperClass="project-panel-html"
 				style={{
 					pointerEvents: 'none',
-
 				}}
 			>
 				<div
-					ref={panel}
 					style={{
-						backfaceVisibility: 'hidden',
-						transformOrigin: 'center center',
+						width: `${panelSize.width}px`,
+						height: `${panelSize.height}px`,
 						transformStyle: 'preserve-3d',
-						willChange: 'transform',
-						// display: isVisible ? 'block' : 'none',
-						// transition: 'opacity 0.1s ease-in-out',
 					}}
 				>
 					<AnimatePresence initial={false}>
 						<motion.article
 							key={`info-${project.title}`}
-							initial={{ opacity: 0, x: -20 }}
-							animate={isVisible ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
+							initial={{ opacity: 0 }}
+							animate={isVisible ? { opacity: 1 } : { opacity: 0 }}
 							transition={{
 								opacity: isVisible
 									? { delay: FACE_SHOW_DELAY, duration: FACE_SHOW_DURATION, ease: 'easeOut' }
 									: { duration: FACE_HIDE_DURATION, ease: 'linear' },
-								x: isVisible
-									? { delay: FACE_SHOW_DELAY, duration: FACE_SHOW_DURATION, ease: 'easeOut' }
-									: { duration: FACE_HIDE_DURATION, ease: 'linear' },
 							}}
-							className="grid w-[150vw] h-[150vh] grid-cols-2 overflow-hidden bg-transparent text-white"
+							className="grid h-full w-full overflow-hidden bg-transparent text-white"
+							style={{
+								gridTemplateColumns: `minmax(0, 1fr) minmax(0, 1fr)`,
+								columnGap: `${panelSize.gap}px`,
+							}}
 						>
-							<div className="p-8">
-								<p className="mb-4 text-base uppercase tracking-[0.28em] text-white/50">Selected project</p>
-								<h2 className="mb-4 text-9xl font-semibold">{project.title}</h2>
-								<p className="mb-6 text-6xl leading-16 text-white/70">{project.blurb}</p>
-								<div className="mb-6 flex gap-8 border-y border-white/15 py-4">
-									<div>
-										<strong className="block text-2xl">{project.metrics.volume}</strong>
-										<span className="text-[10px] uppercase tracking-wider text-white/45">Volume</span>
-									</div>
-									<div>
-										<strong className="block text-2xl">{project.metrics.transactions}</strong>
-										<span className="text-[10px] uppercase tracking-wider text-white/45">Transactions</span>
-									</div>
-								</div>
-								<div className="flex flex-wrap gap-12">
-									{project.tags.map((tag) => (
-										<span key={tag} className="border border-white/20 px-8 py-6 text-base text-white/70">
-											{tag}
-										</span>
-									))}
-								</div>
-							</div>
-							<div className="relative bg-black">
+							<div className="relative min-h-0 overflow-hidden bg-black">
 								<Image
 									src="/image1.jpg"
 									alt={`${project.title} preview`}
 									fill
-									sizes="480px"
+									sizes="50vw"
 									className="object-cover"
 								/>
+							</div>
+							<div className="min-h-0 overflow-hidden p-16">
+								<p className="mb-8 text-2xl uppercase tracking-[0.28em] text-white/50">Selected project</p>
+								<h2 className="mb-8 text-7xl font-semibold">{project.title}</h2>
+								<p className="mb-10 text-3xl leading-10 text-white/70">{project.blurb}</p>
+								<div className="mb-10 flex gap-12 border-y border-white/15 py-8">
+									<div>
+										<strong className="block text-4xl">{project.metrics.volume}</strong>
+										<span className="text-xl uppercase tracking-wider text-white/45">Volume</span>
+									</div>
+									<div>
+										<strong className="block text-4xl">{project.metrics.transactions}</strong>
+										<span className="text-xl uppercase tracking-wider text-white/45">Transactions</span>
+									</div>
+								</div>
+								<div className="flex flex-wrap gap-6">
+									{project.tags.map((tag) => (
+										<span key={tag} className="border border-white/20 px-8 py-5 text-xl text-white/70">
+											{tag}
+										</span>
+									))}
+								</div>
 							</div>
 						</motion.article>
 					</AnimatePresence>
@@ -145,7 +139,7 @@ function ProjectFace({ project, position, rotation }: ProjectFaceProps) {
 	)
 }
 
-export function ProjectPanels({ geometry, projects }: { geometry: THREE.BufferGeometry, projects: Project[] }) {
+export function ProjectPanels({ geometry, projects, scaleY }: { geometry: THREE.BufferGeometry, projects: Project[], scaleY: number }) {
 	const faces = useMemo(() => {
 		geometry.computeBoundingBox()
 		const bounds = geometry.boundingBox
@@ -153,25 +147,44 @@ export function ProjectPanels({ geometry, projects }: { geometry: THREE.BufferGe
 
 		const center = new THREE.Vector3()
 		bounds.getCenter(center)
-		center.y *= 0.25
+		center.y *= scaleY
 		const halfSize = new THREE.Vector3()
 		bounds.getSize(halfSize).multiplyScalar(0.5)
-		const faceOffset = 0.025
-		const panelOffset = Math.min(halfSize.x, halfSize.z) * 0.02
+		const positions = geometry.getAttribute('position')
 
 		return FACE_NORMALS.map((normal) => {
 			const position = center.clone()
 			const tangent = new THREE.Vector3(normal.z, 0, -normal.x)
-			position.x += normal.x * (halfSize.x + faceOffset)
-			position.z += normal.z * (halfSize.z + faceOffset)
-			position.addScaledVector(tangent, -panelOffset)
+			const faceHalfDepth = Math.abs(normal.x) * halfSize.x + Math.abs(normal.z) * halfSize.z
+			const width = 2 * (Math.abs(tangent.x) * halfSize.x + Math.abs(tangent.z) * halfSize.z)
+			const tangentCenter = center.dot(tangent)
+			let lowerChannelEdge = -Infinity
+			let upperChannelEdge = Infinity
+
+			for (let index = 0; index < positions.count; index += 1) {
+				const tangentPosition = positions.getX(index) * tangent.x + positions.getZ(index) * tangent.z
+				if (tangentPosition < tangentCenter && tangentPosition > lowerChannelEdge) {
+					lowerChannelEdge = tangentPosition
+				} else if (tangentPosition > tangentCenter && tangentPosition < upperChannelEdge) {
+					upperChannelEdge = tangentPosition
+				}
+			}
+
+			const channelWidth = Number.isFinite(lowerChannelEdge) && Number.isFinite(upperChannelEdge)
+				? upperChannelEdge - lowerChannelEdge
+				: 0
+
+			position.addScaledVector(normal, faceHalfDepth + FACE_SURFACE_GAP)
 
 			return {
 				position: position.toArray() as [number, number, number],
 				rotation: [0, Math.atan2(normal.x, normal.z), 0] as [number, number, number],
+				width,
+				height: halfSize.y * 2 * scaleY,
+				channelWidth,
 			}
 		})
-	}, [geometry])
+	}, [geometry, scaleY])
 
 	return (
 		<group>

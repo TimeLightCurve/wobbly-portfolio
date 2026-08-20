@@ -4,9 +4,19 @@
 import { CameraControls, Environment, type CameraControlsImpl } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 // import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import { folder, LevaPanel, useControls, useCreateStore } from 'leva'
 import { useScroll, type MotionValue } from 'motion/react'
-import { Suspense, useMemo, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
+import {
+	createPointerAudioRig,
+	disposePointerAudioRig,
+	PointerAudioModulator,
+	setPointerAudioMuted,
+	triggerColumnSlowMotion,
+	type PointerAudioRig,
+	type PointerAudioSettings,
+} from './PointerAudio'
 import { COLUMN_SPACING, getProjectColumnCount, Room } from './Room'
 import { projects } from './projects'
 
@@ -213,7 +223,7 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY }: { scr
 			material.current.uniforms.uTimeFrequency.value = 0.66 + 0.001 * proximity
 			material.current.uniforms.uStrength.value = 0.14 * proximity
 			material.current.uniforms.uWarpPositionFrequency.value = 1.0 * proximity
-			material.current.uniforms.uWarpTimeFrequency.value = 0.72 + 0.0006 * proximity
+			material.current.uniforms.uWarpTimeFrequency.value = 0.72 + 0.0008 * proximity
 			material.current.uniforms.uWarpStrength.value = 0.32 * proximity
 			material.current.uniforms.uTime.value = state.clock.getElapsedTime()
 		}
@@ -229,19 +239,131 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY }: { scr
 
 export function ThreeCanvas() {
 	const { scrollYProgress } = useScroll()
+	const audioControlStore = useCreateStore()
+	const audioSettings = useControls({
+		Output: folder({
+			masterVolume: { value: 0.13, min: 0, max: 0.5, step: 0.005, label: 'Master volume' },
+		}, { collapsed: true }),
+		Trigger: folder({
+			centerThreshold: { value: 0.6, min: 0.4, max: 0.98, step: 0.01, label: 'Center threshold' },
+			centerRearm: { value: 0.56, min: 0.1, max: 0.9, step: 0.01, label: 'Re-arm distance' },
+			triggerCooldown: { value: 0.76, min: 0.05, max: 1, step: 0.01, label: 'Trigger cooldown' },
+			pointerVelocityThreshold: { value: 0.12, min: 0, max: 1, step: 0.01, label: 'Pointer threshold' },
+			pointerVelocityScale: { value: 0.79, min: 0.01, max: 1, step: 0.01, label: 'Pointer velocity' },
+			scrollVelocityThreshold: { value: 0.07, min: 0.01, max: 1, step: 0.01, label: 'Scroll contrast' },
+			scrollVelocityScale: { value: 39, min: 1, max: 60, step: 1, label: 'Scroll velocity' },
+		}, { collapsed: true }),
+		Envelope: folder({
+			baseDuration: { value: 1.87, min: 0.05, max: 2, step: 0.01, label: 'Base duration' },
+			centerDurationStretch: { value: 1.93, min: 0, max: 3, step: 0.01, label: 'Center stretch' },
+			velocityDurationStretch: { value: 2.75, min: 0, max: 3, step: 0.01, label: 'Velocity stretch' },
+			attack: { value: 0.17, min: 0.001, max: 0.2, step: 0.001, label: 'Attack' },
+		}, { collapsed: true }),
+		Tone: folder({
+			basePitch: { value: 62, min: 24, max: 120, step: 1, label: 'Base pitch' },
+			pitchSweep: { value: 19, min: 0, max: 48, step: 1, label: 'Velocity pitch sweep' },
+			baseCutoff: { value: 150, min: 40, max: 4000, step: 10, label: 'Base cutoff' },
+			centerCutoffStretch: { value: 9500, min: 0, max: 12000, step: 50, label: 'Center filter stretch' },
+			velocityCutoffStretch: { value: 7700, min: 0, max: 12000, step: 50, label: 'Velocity filter stretch' },
+			baseResonance: { value: 2.8, min: 0, max: 25, step: 0.1, label: 'Base resonance' },
+			resonanceStretch: { value: 21.9, min: 0, max: 28, step: 0.1, label: 'Resonance stretch' },
+			distortion: { value: 132, min: 0, max: 150, step: 1, label: 'Distortion' },
+		}, { collapsed: true }),
+		Mix: folder({
+			acidLevel: { value: 0.11, min: 0, max: 0.6, step: 0.005, label: 'Acid level' },
+			noiseLevel: { value: 0.11, min: 0, max: 0.6, step: 0.005, label: 'Noise level' },
+			proximityCurve: { value: 3, min: 0.4, max: 4, step: 0.05, label: 'Center curve' },
+			stereoWidth: { value: 0.65, min: 0, max: 1, step: 0.01, label: 'Stereo width' },
+		}, { collapsed: true }),
+		Randomness: folder({
+			randomness: { value: 0.71, min: 0, max: 1, step: 0.01, label: 'Variation amount' },
+			pitchRandomness: { value: 4, min: 0, max: 24, step: 1, label: 'Pitch variation' },
+			durationRandomness: { value: 0.61, min: 0, max: 0.75, step: 0.01, label: 'Duration variation' },
+			filterRandomness: { value: 0.25, min: 0, max: 1.5, step: 0.01, label: 'Filter variation' },
+			timbreRandomness: { value: 0.55, min: 0, max: 1, step: 0.01, label: 'Timbre variation' },
+		}, { collapsed: true }),
+		'Slow motion': folder({
+			slowMotionCooldown: { value: 0.35, min: 0.2, max: 3, step: 0.05, label: 'Cooldown' },
+			slowMotionDuration: { value: 2.2, min: 0.5, max: 6, step: 0.05, label: 'Duration' },
+			slowMotionVelocityStretch: { value: 0.25, min: 0, max: 4, step: 0.05, label: 'Velocity stretch' },
+			slowMotionPitch: { value: 48, min: 18, max: 90, step: 1, label: 'Low pitch' },
+			slowMotionPitchDrop: { value: 2, min: 0, max: 36, step: 1, label: 'Pitch drop' },
+			slowMotionCutoff: { value: 130, min: 35, max: 800, step: 5, label: 'Low cutoff' },
+			slowMotionCutoffStretch: { value: 500, min: 0, max: 3000, step: 25, label: 'Velocity cutoff' },
+			slowMotionResonance: { value: 15.5, min: 0.1, max: 18, step: 0.1, label: 'Resonance' },
+			slowMotionRumbleLevel: { value: 0.16, min: 0, max: 0.7, step: 0.005, label: 'Growl level' },
+			slowMotionNoiseLevel: { value: 0.42, min: 0, max: 0.5, step: 0.005, label: 'Dark texture' },
+			slowMotionImpactLevel: { value: 0, min: 0, max: 0.7, step: 0.005, label: 'Impact level' },
+			slowMotionOutput: { value: 1.5, min: 0.25, max: 2, step: 0.05, label: 'Output boost' },
+		}, { collapsed: true }),
+	}, { store: audioControlStore }) as PointerAudioSettings
 	const anchorStore = useMemo(() => new ColumnAnchorStore(), [])
+	const audioRig = useRef<PointerAudioRig | null>(null)
+	const audioEnabledRef = useRef(false)
+	const [audioEnabled, setAudioEnabled] = useState(false)
 	const columnCount = getProjectColumnCount(projects.length)
 	const cameraEndY = -5.3 - (columnCount - 1) * COLUMN_SPACING
 	const sphereEndY = cameraEndY - 0.4
+
+	const enableAudio = useCallback(() => {
+		try {
+			const rig = audioRig.current ?? createPointerAudioRig()
+			audioRig.current = rig
+			void rig.context.resume()
+			setPointerAudioMuted(rig, false)
+			audioEnabledRef.current = true
+			setAudioEnabled(true)
+		} catch {
+			// Web Audio can be unavailable or blocked by browser/device policy.
+		}
+	}, [])
+
+	const disableAudio = useCallback(() => {
+		if (audioRig.current) setPointerAudioMuted(audioRig.current, true)
+		audioEnabledRef.current = false
+		setAudioEnabled(false)
+	}, [])
+
+	const toggleAudio = useCallback(() => {
+		if (audioEnabledRef.current) {
+			disableAudio()
+		} else {
+			enableAudio()
+		}
+	}, [disableAudio, enableAudio])
+
+	useEffect(() => {
+		const enableFromFirstGesture = (event: PointerEvent | KeyboardEvent) => {
+			const target = event.target
+			if (target instanceof Element && target.closest('[data-audio-toggle]')) return
+			enableAudio()
+		}
+
+		window.addEventListener('pointerdown', enableFromFirstGesture, { capture: true, once: true })
+		window.addEventListener('keydown', enableFromFirstGesture, { capture: true, once: true })
+
+		return () => {
+			window.removeEventListener('pointerdown', enableFromFirstGesture, true)
+			window.removeEventListener('keydown', enableFromFirstGesture, true)
+			if (audioRig.current) disposePointerAudioRig(audioRig.current)
+		}
+	}, [enableAudio])
+
 	const handleAnchorChange = (columnIndex: number, x: number, z: number) => {
 		anchorStore.update(columnIndex, x, z)
 	}
+	const handleColumnMotion = useCallback((velocity: number, direction: number) => {
+		const rig = audioRig.current
+		if (!rig || !audioEnabledRef.current) return
+		triggerColumnSlowMotion(rig, audioSettings, velocity, direction)
+	}, [audioSettings])
 
 	return (
 		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 260}vh` }}>
 			{/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(110,255,214,0.16),transparent_42%),linear-gradient(180deg,#0b1513_0%,#07110f_100%)]" /> */}
 			<div className="sticky top-0 z-10 h-screen w-full">
 				<Canvas camera={{ position: [0, 0, 5], fov: 34 }} dpr={[1, 2]} gl={{ antialias: false, powerPreference: 'high-performance' }} className="h-full w-full">
+					<PointerAudioModulator rigRef={audioRig} settings={audioSettings} enabled={audioEnabled} scrollProgress={scrollYProgress} />
 					{/* <color attach="background" args={["#07110f"]} /> */}
 					<ambientLight intensity={0.1} />
 					{/* <directionalLight position={[4, 6, 5]} intensity={1.8} color="#d6fff1" /> */}
@@ -249,7 +371,12 @@ export function ThreeCanvas() {
 					<Suspense fallback={null}>
 
 						<Environment files={'/venice_sunset_1k.hdr'} background={false} environmentIntensity={0.5} />
-						<Room position={[0, 0., 0]} rotation={[0, -Math.PI / 2, 0]} onAnchorChange={handleAnchorChange} />
+						<Room
+							position={[0, 0., 0]}
+							rotation={[0, -Math.PI / 2, 0]}
+							onAnchorChange={handleAnchorChange}
+							onColumnMotion={handleColumnMotion}
+						/>
 						{/* <Float floatIntensity={1} floatingRange={[-0.1, 0.1]} rotationIntensity={1} speed={3}> */}
 						<WobbleSphere scrollYProgress={scrollYProgress} anchorStore={anchorStore} columnCount={columnCount} endY={sphereEndY} />
 						{/* </Float> */}
@@ -271,8 +398,29 @@ export function ThreeCanvas() {
 					maxPolarAngle={Math.PI / 1.8}
 				autoRotate
 				autoRotateSpeed={0.9}
-				/> */}
+					/> */}
 				</Canvas>
+				<aside dir="ltr" className="absolute top-4 right-4 z-40 w-[320px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg">
+					<LevaPanel
+						store={audioControlStore}
+						fill
+						titleBar={{ title: 'Gesture Noise Lab', drag: false, filter: false }}
+						hideCopyButton
+						hidden={true}
+					/>
+				</aside>
+				<button
+					type="button"
+					data-audio-toggle
+					dir="ltr"
+					aria-pressed={audioEnabled}
+					aria-label={audioEnabled ? 'Mute interactive sound' : 'Enable interactive sound'}
+					onClick={toggleAudio}
+					className="absolute right-5 bottom-5 z-30 flex items-center gap-2 rounded-full border border-white/20 bg-black/45 px-4 py-2 text-xs tracking-[0.18em] text-white/70 uppercase backdrop-blur-md transition-colors hover:border-white/40 hover:text-white"
+				>
+					<span className={`h-1.5 w-1.5 rounded-full transition-colors ${audioEnabled ? 'bg-fuchsia-300' : 'bg-white/30'}`} />
+					{audioEnabled ? 'Sound on' : 'Enable sound'}
+				</button>
 			</div>
 
 			{/* <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-[#07110f] via-[#07110f]/70 to-transparent px-4 pb-10 pt-24 sm:px-6 lg:px-10">

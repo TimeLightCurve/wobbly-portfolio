@@ -24,3 +24,9 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Drei's Html helper uses implicit absolute-position anchors internally.
+   Keep those wrappers LTR even though the document content is RTL. */
+.project-panel-html {
+  direction: ltr;
+}
