@@ -62,8 +62,29 @@ const nian = localFont({
 
 
 export const metadata: Metadata = {
-  title: "پرتفوی دکتر روانشناس",
-  description: "وب سایت شخصی و پرتفوی حرفه ای دکتر روانشناس برای معرفی خدمات، تجربه و راه های ارتباطی.",
+  title: "Wobira | AI, Software & SaaS Studio",
+  description: "Wobira is the portfolio studio of Amirhosein Tahmasb and Shayan, building enterprise AI solutions, digital products, SaaS platforms, fintech, and blockchain software.",
+  applicationName: "Wobira",
+  keywords: [
+    "Wobira",
+    "AI solutions",
+    "enterprise software",
+    "digital products",
+    "SaaS development",
+    "fintech",
+    "blockchain software",
+  ],
+  openGraph: {
+    title: "Wobira | AI, Software & SaaS Studio",
+    description: "Enterprise AI solutions, digital products, SaaS, fintech, and blockchain software by Amirhosein Tahmasb and Shayan.",
+    siteName: "Wobira",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Wobira | AI, Software & SaaS Studio",
+    description: "Enterprise AI solutions, digital products, SaaS, fintech, and blockchain software.",
+  },
 }
 
 export default async function RootLayout({

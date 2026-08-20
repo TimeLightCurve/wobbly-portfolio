@@ -119,6 +119,9 @@ function InkEdges({ edges, scale, position }: { edges: THREE.EdgesGeometry, scal
 }
 
 export const COLUMN_MESH_OFFSET_Y = 1.3725
+export const COLUMN_SPACING = 2.7
+export const PROJECTS_PER_COLUMN = 4
+export const getProjectColumnCount = (projectCount: number) => Math.floor(projectCount / PROJECTS_PER_COLUMN) + 1
 const QUARTER_TURN = Math.PI / 2
 const DRAG_DISTANCE_PER_TURN = 120
 const MIN_DRAG_DISTANCE = 28
@@ -133,15 +136,23 @@ type PointerCaptureTarget = {
 type ColumnSystemProps = {
   geometry: THREE.BufferGeometry
   edges: THREE.EdgesGeometry
-  onAnchorChange: (columnIndex: 0 | 1, x: number, z: number) => void
+  onAnchorChange: (columnIndex: number, x: number, z: number) => void
 }
-
-const COLUMN_CENTER_Y = [-2.8725, -5.5725] as const
 
 function ColumnSystem({ geometry, edges, onAnchorChange }: ColumnSystemProps) {
   const columns = useRef<THREE.Group>(null)
   const columnCenters = useRef<Array<THREE.Group | null>>([])
-  const anchorPositions = useRef([new THREE.Vector3(), new THREE.Vector3()])
+  const anchorPositions = useRef<THREE.Vector3[]>([])
+  const projectSections = useMemo(() => Array.from(
+    { length: getProjectColumnCount(projects.length) },
+    (_, columnIndex) => projects.slice(
+      columnIndex * PROJECTS_PER_COLUMN,
+      (columnIndex + 1) * PROJECTS_PER_COLUMN,
+    ),
+  ), [])
+  const columnCentersY = useMemo(() => projectSections.map(
+    (_, columnIndex) => -2.8725 - columnIndex * COLUMN_SPACING,
+  ), [projectSections])
   const geometryCenter = useMemo(() => {
     geometry.computeBoundingBox()
     const center = new THREE.Vector3()
@@ -216,16 +227,17 @@ function ColumnSystem({ geometry, edges, onAnchorChange }: ColumnSystemProps) {
 
     columnCenters.current.forEach((columnCenter, columnIndex) => {
       if (!columnCenter) return
-      const anchorPosition = anchorPositions.current[columnIndex]
+      const anchorPosition = anchorPositions.current[columnIndex] ?? new THREE.Vector3()
+      anchorPositions.current[columnIndex] = anchorPosition
       anchorPosition.copy(geometryCenter)
       columnCenter.localToWorld(anchorPosition)
-      onAnchorChange(columnIndex as 0 | 1, anchorPosition.x, anchorPosition.z)
+      onAnchorChange(columnIndex, anchorPosition.x, anchorPosition.z)
     })
   })
 
   return (
     <>
-      {COLUMN_CENTER_Y.map((centerY) => (
+      {columnCentersY.map((centerY) => (
         <mesh
           key={centerY}
           position={[1.2, centerY, 0]}
@@ -241,7 +253,7 @@ function ColumnSystem({ geometry, edges, onAnchorChange }: ColumnSystemProps) {
         </mesh>
       ))}
       <group ref={columns} position={[geometryCenter.x, 0, geometryCenter.z]}>
-        {COLUMN_CENTER_Y.map((centerY, columnIndex) => (
+        {columnCentersY.map((centerY, columnIndex) => (
           <group
             key={centerY}
             ref={(group) => { columnCenters.current[columnIndex] = group }}
@@ -251,7 +263,7 @@ function ColumnSystem({ geometry, edges, onAnchorChange }: ColumnSystemProps) {
               <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
             </mesh>
             <InkEdges edges={edges} scale={[1, 0.25, 1]} />
-            <ProjectPanels geometry={geometry} projects={projects} />
+            <ProjectPanels geometry={geometry} projects={projectSections[columnIndex]} />
           </group>
         ))}
       </group>
@@ -259,7 +271,7 @@ function ColumnSystem({ geometry, edges, onAnchorChange }: ColumnSystemProps) {
   )
 }
 
-export function Room({ onAnchorChange, ...props }: JSX.IntrinsicElements['group'] & { onAnchorChange: (columnIndex: 0 | 1, x: number, z: number) => void }) {
+export function Room({ onAnchorChange, ...props }: JSX.IntrinsicElements['group'] & { onAnchorChange: (columnIndex: number, x: number, z: number) => void }) {
   const { nodes, materials } = useGLTF('/room2.glb') as unknown as GLTFResult
 
   const roomEdges = useMemo(() => toInkEdges(nodes.room.geometry), [nodes.room.geometry])

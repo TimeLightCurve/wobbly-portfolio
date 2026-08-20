@@ -7,7 +7,8 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { useScroll, type MotionValue } from 'motion/react'
 import { Suspense, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { Room } from './Room'
+import { COLUMN_SPACING, getProjectColumnCount, Room } from './Room'
+import { projects } from './projects'
 
 const WOBBLE_VERTEX_SHADER = `
 	uniform float uTime;
@@ -120,17 +121,16 @@ const SPHERE_PATH = {
 	startX: 0,
 	z: -1.41,
 	startY: 0.2,
-	endY: -8.4,
 }
 
-function ScrollCamera({ scrollYProgress }: { scrollYProgress: MotionValue<number> }) {
+function ScrollCamera({ scrollYProgress, endY }: { scrollYProgress: MotionValue<number>, endY: number }) {
 	const cameraControls = useRef<CameraControlsImpl>(null)
 
 	useFrame((state) => {
 		const scrollProgress = scrollYProgress.get()
 		const pointerOffsetX = state.pointer.x * 0.18
 		const pointerOffsetY = state.pointer.y * 0.2
-		const targetY = THREE.MathUtils.lerp(0, -8, scrollProgress)
+		const targetY = THREE.MathUtils.lerp(0, endY, scrollProgress)
 
 		cameraControls.current?.setLookAt(
 			pointerOffsetX,
@@ -147,20 +147,18 @@ function ScrollCamera({ scrollYProgress }: { scrollYProgress: MotionValue<number
 }
 
 class ColumnAnchorStore {
-	positions: [[number, number], [number, number]] = [[0, 0], [0, 0]]
-	basePositions: [[number, number], [number, number]] = [[0, 0], [0, 0]]
-	initialized: [boolean, boolean] = [false, false]
+	positions: Array<[number, number]> = []
+	basePositions: Array<[number, number]> = []
 
-	update(columnIndex: 0 | 1, x: number, z: number) {
+	update(columnIndex: number, x: number, z: number) {
 		this.positions[columnIndex] = [x, z]
-		if (!this.initialized[columnIndex]) {
+		if (!this.basePositions[columnIndex]) {
 			this.basePositions[columnIndex] = [x, z]
-			this.initialized[columnIndex] = true
 		}
 	}
 }
 
-function WobbleSphere({ scrollYProgress, anchorStore }: { scrollYProgress: MotionValue<number>, anchorStore: ColumnAnchorStore }) {
+function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY }: { scrollYProgress: MotionValue<number>, anchorStore: ColumnAnchorStore, columnCount: number, endY: number }) {
 	const sphere = useRef<THREE.Mesh>(null)
 	const material = useRef<THREE.ShaderMaterial>(null)
 	const rotationAngle = useRef(0)
@@ -184,22 +182,27 @@ function WobbleSphere({ scrollYProgress, anchorStore }: { scrollYProgress: Motio
 
 	useFrame((state, delta) => {
 		const scrollProgress = scrollYProgress.get()
-		const activeColumn = scrollProgress < 0.5 ? 0 : 1
-		const currentAnchor = anchorStore.positions[activeColumn]
-		const baseAnchor = anchorStore.basePositions[activeColumn]
+		const activeColumn = Math.min(Math.floor(scrollProgress * columnCount), columnCount - 1)
+		const currentAnchor = anchorStore.positions[activeColumn] ?? [0, 0]
+		const baseAnchor = anchorStore.basePositions[activeColumn] ?? currentAnchor
 		const worldDeltaX = currentAnchor[0] - baseAnchor[0]
 		const worldDeltaZ = currentAnchor[1] - baseAnchor[1]
-		const targetX = SPHERE_PATH.startX + worldDeltaX
-		const targetY = THREE.MathUtils.lerp(SPHERE_PATH.startY, SPHERE_PATH.endY, scrollProgress)
-		const targetZ = SPHERE_PATH.z + worldDeltaZ
+		const anchorInfluence = THREE.MathUtils.smoothstep(scrollProgress, 0.08, 0.18)
+		const targetX = SPHERE_PATH.startX + worldDeltaX * anchorInfluence
+		const targetY = THREE.MathUtils.lerp(SPHERE_PATH.startY, endY, scrollProgress)
+		const targetZ = SPHERE_PATH.z + worldDeltaZ * anchorInfluence
 		const pointerDistance = state.pointer.length()
 		const targetPointerProximity = 1 - THREE.MathUtils.clamp(pointerDistance / Math.SQRT2, 0, 1)
 		pointerProximity.current = THREE.MathUtils.damp(pointerProximity.current, targetPointerProximity, 8, delta)
 
 		if (sphere.current) {
-			sphere.current.position.x = THREE.MathUtils.damp(sphere.current.position.x, targetX, 2, delta)
-			sphere.current.position.y = THREE.MathUtils.damp(sphere.current.position.y, targetY, 2, delta)
-			sphere.current.position.z = THREE.MathUtils.damp(sphere.current.position.z, targetZ, 2, delta)
+			if (scrollProgress <= 0.001) {
+				sphere.current.position.set(SPHERE_PATH.startX, SPHERE_PATH.startY, SPHERE_PATH.z)
+			} else {
+				sphere.current.position.x = THREE.MathUtils.damp(sphere.current.position.x, targetX, 2, delta)
+				sphere.current.position.y = THREE.MathUtils.damp(sphere.current.position.y, targetY, 2, delta)
+				sphere.current.position.z = THREE.MathUtils.damp(sphere.current.position.z, targetZ, 2, delta)
+			}
 			rotationAngle.current = THREE.MathUtils.damp(rotationAngle.current, scrollProgress * Math.PI * 4, 5, delta)
 			sphere.current.setRotationFromAxisAngle(rotationAxis, rotationAngle.current)
 		}
@@ -227,12 +230,15 @@ function WobbleSphere({ scrollYProgress, anchorStore }: { scrollYProgress: Motio
 export function ThreeCanvas() {
 	const { scrollYProgress } = useScroll()
 	const anchorStore = useMemo(() => new ColumnAnchorStore(), [])
-	const handleAnchorChange = (columnIndex: 0 | 1, x: number, z: number) => {
+	const columnCount = getProjectColumnCount(projects.length)
+	const cameraEndY = -5.3 - (columnCount - 1) * COLUMN_SPACING
+	const sphereEndY = cameraEndY - 0.4
+	const handleAnchorChange = (columnIndex: number, x: number, z: number) => {
 		anchorStore.update(columnIndex, x, z)
 	}
 
 	return (
-		<section id="neuron-canvas" className="relative h-[520vh] w-full bg-transparent">
+		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 260}vh` }}>
 			{/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(110,255,214,0.16),transparent_42%),linear-gradient(180deg,#0b1513_0%,#07110f_100%)]" /> */}
 			<div className="sticky top-0 z-10 h-screen w-full">
 				<Canvas camera={{ position: [0, 0, 5], fov: 34 }} dpr={[1, 2]} gl={{ antialias: false, powerPreference: 'high-performance' }} className="h-full w-full">
@@ -245,10 +251,10 @@ export function ThreeCanvas() {
 						<Environment files={'/venice_sunset_1k.hdr'} background={false} environmentIntensity={0.5} />
 						<Room position={[0, 0., 0]} rotation={[0, -Math.PI / 2, 0]} onAnchorChange={handleAnchorChange} />
 						{/* <Float floatIntensity={1} floatingRange={[-0.1, 0.1]} rotationIntensity={1} speed={3}> */}
-						<WobbleSphere scrollYProgress={scrollYProgress} anchorStore={anchorStore} />
+						<WobbleSphere scrollYProgress={scrollYProgress} anchorStore={anchorStore} columnCount={columnCount} endY={sphereEndY} />
 						{/* </Float> */}
 					</Suspense>
-					<ScrollCamera scrollYProgress={scrollYProgress} />
+					<ScrollCamera scrollYProgress={scrollYProgress} endY={cameraEndY} />
 					{/* <EffectComposer multisampling={0} enableNormalPass={false}>
 					<Bloom
 						intensity={1.25}
