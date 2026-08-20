@@ -9,7 +9,7 @@ import { JSX, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { GLTF } from 'three-stdlib'
 import { ProjectPanels } from './ProjectPanels'
-import { projects } from './projects'
+import { projects, type Project } from './projects'
 
 type GLTFResult = GLTF & {
   nodes: {
@@ -122,6 +122,10 @@ export const COLUMN_MESH_OFFSET_Y = 1.3725
 export const COLUMN_SPACING = 2.7
 export const PROJECTS_PER_COLUMN = 4
 export const getProjectColumnCount = (projectCount: number) => Math.floor(projectCount / PROJECTS_PER_COLUMN) + 1
+const COLUMN_PIVOT_X = -0.21
+const COLUMN_PIVOT_Z = 0.03
+const COLUMN_MESH_OFFSET_X = 0.21
+const COLUMN_MESH_OFFSET_Z = -0.03
 const QUARTER_TURN = Math.PI / 2
 const DRAG_DISTANCE_PER_TURN = 120
 const MIN_DRAG_DISTANCE = 28
@@ -133,26 +137,19 @@ type PointerCaptureTarget = {
   releasePointerCapture: (pointerId: number) => void
 }
 
-type ColumnSystemProps = {
+type ColumnSectionProps = {
   geometry: THREE.BufferGeometry
   edges: THREE.EdgesGeometry
+  centerY: number
+  columnIndex: number
+  sectionProjects: Project[]
   onAnchorChange: (columnIndex: number, x: number, z: number) => void
 }
 
-function ColumnSystem({ geometry, edges, onAnchorChange }: ColumnSystemProps) {
+function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects, onAnchorChange }: ColumnSectionProps) {
   const columns = useRef<THREE.Group>(null)
-  const columnCenters = useRef<Array<THREE.Group | null>>([])
-  const anchorPositions = useRef<THREE.Vector3[]>([])
-  const projectSections = useMemo(() => Array.from(
-    { length: getProjectColumnCount(projects.length) },
-    (_, columnIndex) => projects.slice(
-      columnIndex * PROJECTS_PER_COLUMN,
-      (columnIndex + 1) * PROJECTS_PER_COLUMN,
-    ),
-  ), [])
-  const columnCentersY = useMemo(() => projectSections.map(
-    (_, columnIndex) => -2.8725 - columnIndex * COLUMN_SPACING,
-  ), [projectSections])
+  const columnCenter = useRef<THREE.Group>(null)
+  const anchorPosition = useRef(new THREE.Vector3())
   const geometryCenter = useMemo(() => {
     geometry.computeBoundingBox()
     const center = new THREE.Vector3()
@@ -225,50 +222,59 @@ function ColumnSystem({ geometry, edges, onAnchorChange }: ColumnSystemProps) {
     columns.current.rotation.y = THREE.MathUtils.damp(columns.current.rotation.y, rotation, isDragging.current ? 18 : 7, delta)
     columns.current.updateWorldMatrix(true, false)
 
-    columnCenters.current.forEach((columnCenter, columnIndex) => {
-      if (!columnCenter) return
-      const anchorPosition = anchorPositions.current[columnIndex] ?? new THREE.Vector3()
-      anchorPositions.current[columnIndex] = anchorPosition
-      anchorPosition.copy(geometryCenter)
-      columnCenter.localToWorld(anchorPosition)
-      onAnchorChange(columnIndex, anchorPosition.x, anchorPosition.z)
-    })
+    if (!columnCenter.current) return
+    anchorPosition.current.copy(geometryCenter)
+    columnCenter.current.localToWorld(anchorPosition.current)
+    onAnchorChange(columnIndex, anchorPosition.current.x, anchorPosition.current.z)
   })
 
   return (
     <>
-      {columnCentersY.map((centerY) => (
-        <mesh
-          key={centerY}
-          position={[1.2, centerY, 0]}
-          rotation={[0, Math.PI / 2, 0]}
-          onPointerDown={handlePointerDown}
-          onPointerMove={rotateFromDrag}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerCancel}
-          onLostPointerCapture={handlePointerCancel}
-        >
-          <planeGeometry args={[4.8, 3.8]} />
-          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-        </mesh>
-      ))}
-      <group ref={columns} position={[geometryCenter.x, 0, geometryCenter.z]}>
-        {columnCentersY.map((centerY, columnIndex) => (
-          <group
-            key={centerY}
-            ref={(group) => { columnCenters.current[columnIndex] = group }}
-            position={[-geometryCenter.x, centerY + COLUMN_MESH_OFFSET_Y, -geometryCenter.z]}
-          >
-            <mesh geometry={geometry} castShadow receiveShadow scale={[1, 0.25, 1]}>
-              <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
-            </mesh>
-            <InkEdges edges={edges} scale={[1, 0.25, 1]} />
-            <ProjectPanels geometry={geometry} projects={projectSections[columnIndex]} />
-          </group>
-        ))}
+      <mesh
+        position={[1.2, centerY, 0]}
+        rotation={[0, Math.PI / 2, 0]}
+        onPointerDown={handlePointerDown}
+        onPointerMove={rotateFromDrag}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onLostPointerCapture={handlePointerCancel}
+      >
+        <planeGeometry args={[4.8, 3.8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <group ref={columns} position={[COLUMN_PIVOT_X, centerY, COLUMN_PIVOT_Z]}>
+        <group ref={columnCenter} position={[COLUMN_MESH_OFFSET_X, COLUMN_MESH_OFFSET_Y, COLUMN_MESH_OFFSET_Z]}>
+          <mesh geometry={geometry} castShadow receiveShadow scale={[1, 0.25, 1]}>
+            <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
+          </mesh>
+          <InkEdges edges={edges} scale={[1, 0.25, 1]} />
+          <ProjectPanels geometry={geometry} projects={sectionProjects} />
+        </group>
       </group>
     </>
   )
+}
+
+function ColumnSystem({ geometry, edges, onAnchorChange }: Pick<ColumnSectionProps, 'geometry' | 'edges' | 'onAnchorChange'>) {
+  const projectSections = useMemo(() => Array.from(
+    { length: getProjectColumnCount(projects.length) },
+    (_, columnIndex) => projects.slice(
+      columnIndex * PROJECTS_PER_COLUMN,
+      (columnIndex + 1) * PROJECTS_PER_COLUMN,
+    ),
+  ), [])
+
+  return projectSections.map((sectionProjects, columnIndex) => (
+    <ColumnSection
+      key={columnIndex}
+      geometry={geometry}
+      edges={edges}
+      centerY={-2.8725 - columnIndex * COLUMN_SPACING}
+      columnIndex={columnIndex}
+      sectionProjects={sectionProjects}
+      onAnchorChange={onAnchorChange}
+    />
+  ))
 }
 
 export function Room({ onAnchorChange, ...props }: JSX.IntrinsicElements['group'] & { onAnchorChange: (columnIndex: number, x: number, z: number) => void }) {
