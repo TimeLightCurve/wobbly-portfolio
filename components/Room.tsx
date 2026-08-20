@@ -219,7 +219,7 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
     if (!columns.current) return
 
     const rotation = isDragging.current ? dragPreviewRotation.current : targetRotation.current
-    columns.current.rotation.y = THREE.MathUtils.damp(columns.current.rotation.y, rotation, isDragging.current ? 18 : 7, delta)
+    columns.current.rotation.y = THREE.MathUtils.damp(columns.current.rotation.y, rotation, isDragging.current ? 4 : 2, delta)
     columns.current.updateWorldMatrix(true, false)
 
     if (!columnCenter.current) return
