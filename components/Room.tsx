@@ -120,7 +120,7 @@ function InkEdges({ edges, scale, position }: { edges: THREE.EdgesGeometry, scal
 
 export const COLUMN_MESH_OFFSET_Y = 1.3725
 export const COLUMN_MESH_SCALE_Y = 0.25
-export const COLUMN_SPACING = 2.7
+export const COLUMN_SPACING = 3.7
 export const PROJECTS_PER_COLUMN = 4
 export const getProjectColumnCount = (projectCount: number) => Math.floor(projectCount / PROJECTS_PER_COLUMN) + 1
 const COLUMN_PIVOT_X = -0.21
@@ -312,8 +312,10 @@ export function Room({ onAnchorChange, onColumnMotion, ...props }: JSX.Intrinsic
         <mesh geometry={nodes.room.geometry} material={materials.Cardboard} castShadow receiveShadow>
           <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
         </mesh>
-        <InkEdges edges={roomEdges} scale={[1, 1, 1]} />
-        <ColumnSystem geometry={nodes.columns.geometry} edges={columnsEdges} onAnchorChange={onAnchorChange} onColumnMotion={onColumnMotion} />
+          <InkEdges edges={roomEdges} scale={[1, 1, 1]} />
+        <group position={[0, -0.8725, 0]}>
+          <ColumnSystem geometry={nodes.columns.geometry} edges={columnsEdges} onAnchorChange={onAnchorChange} onColumnMotion={onColumnMotion} />
+        </group>
       </group>
     </group>
   )

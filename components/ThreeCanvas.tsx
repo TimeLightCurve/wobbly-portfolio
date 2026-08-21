@@ -392,7 +392,7 @@ export function ThreeCanvas() {
 	}, [audioSettings])
 
 	return (
-		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 260}vh` }}>
+		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 160}vh` }}>
 			{/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(110,255,214,0.16),transparent_42%),linear-gradient(180deg,#0b1513_0%,#07110f_100%)]" /> */}
 			<div className="sticky top-0 z-10 h-screen w-full">
 				<Canvas camera={{ position: [0, 0, 5], fov: DESKTOP_FOV_MAX }} dpr={[1, 2]} gl={{ antialias: false, powerPreference: 'high-performance' }} className="h-full w-full">
