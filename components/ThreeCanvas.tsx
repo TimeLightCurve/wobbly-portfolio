@@ -6,7 +6,7 @@ import { Canvas, useFrame } from '@react-three/fiber'
 // import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import { folder, LevaPanel, useControls, useCreateStore } from 'leva'
 import { useScroll, type MotionValue } from 'motion/react'
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import * as THREE from 'three'
 import {
 	createPointerAudioRig,
@@ -139,6 +139,10 @@ const DESKTOP_FOV_MIN = 40
 const MOBILE_BREAKPOINT = 640
 const DESKTOP_BREAKPOINT = 1024
 const WIDE_DESKTOP_BREAKPOINT = 1920
+const DESKTOP_SCROLL_HEIGHT_PER_COLUMN = 120
+const MOBILE_SCROLL_HEIGHT_PER_COLUMN = 80
+const ANCHOR_TRANSITION_START = 0.12
+const ANCHOR_TRANSITION_END = 0.46
 
 function getResponsiveFov(viewportWidth: number) {
 	if (viewportWidth <= MOBILE_BREAKPOINT) return MOBILE_FOV
@@ -250,11 +254,29 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY, mobileP
 
 	useFrame((state, delta) => {
 		const scrollProgress = scrollYProgress.get()
-		const activeColumn = Math.min(Math.floor(scrollProgress * columnCount), columnCount - 1)
-		const currentAnchor = anchorStore.positions[activeColumn] ?? [0, 0]
-		const baseAnchor = anchorStore.basePositions[activeColumn] ?? currentAnchor
-		const worldDeltaX = currentAnchor[0] - baseAnchor[0]
-		const worldDeltaZ = currentAnchor[1] - baseAnchor[1]
+		const scaledColumnProgress = scrollProgress * columnCount
+		const destinationColumn = Math.min(Math.floor(scaledColumnProgress), columnCount - 1)
+		const sourceColumn = Math.max(destinationColumn - 1, 0)
+		const destinationSectionProgress = destinationColumn === 0
+			? 0
+			: scaledColumnProgress - destinationColumn
+		const anchorTransition = destinationColumn === 0
+			? 0
+			: THREE.MathUtils.smoothstep(
+				destinationSectionProgress,
+				ANCHOR_TRANSITION_START,
+				ANCHOR_TRANSITION_END,
+			)
+		const sourceAnchor = anchorStore.positions[sourceColumn] ?? [0, 0]
+		const sourceBaseAnchor = anchorStore.basePositions[sourceColumn] ?? sourceAnchor
+		const destinationAnchor = anchorStore.positions[destinationColumn] ?? sourceAnchor
+		const destinationBaseAnchor = anchorStore.basePositions[destinationColumn] ?? destinationAnchor
+		const sourceDeltaX = sourceAnchor[0] - sourceBaseAnchor[0]
+		const sourceDeltaZ = sourceAnchor[1] - sourceBaseAnchor[1]
+		const destinationDeltaX = destinationAnchor[0] - destinationBaseAnchor[0]
+		const destinationDeltaZ = destinationAnchor[1] - destinationBaseAnchor[1]
+		const worldDeltaX = THREE.MathUtils.lerp(sourceDeltaX, destinationDeltaX, anchorTransition) * 1.2
+		const worldDeltaZ = THREE.MathUtils.lerp(sourceDeltaZ, destinationDeltaZ, anchorTransition)
 		const anchorInfluence = THREE.MathUtils.smoothstep(scrollProgress, 0.08, 0.18)
 		const targetX = SPHERE_PATH.startX + worldDeltaX * anchorInfluence
 		const targetY = THREE.MathUtils.lerp(SPHERE_PATH.startY, endY, scrollProgress)
@@ -267,7 +289,7 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY, mobileP
 			sphere.current.position.x = THREE.MathUtils.damp(sphere.current.position.x, targetX, 2, delta)
 			sphere.current.position.y = THREE.MathUtils.damp(sphere.current.position.y, targetY, 2, delta)
 			sphere.current.position.z = THREE.MathUtils.damp(sphere.current.position.z, targetZ, 2, delta)
-			rotationAngle.current = THREE.MathUtils.damp(rotationAngle.current, scrollProgress * Math.PI * 2, 4, delta)
+			rotationAngle.current = THREE.MathUtils.damp(rotationAngle.current, scrollProgress * Math.PI * 4, 2, delta)
 			sphere.current.setRotationFromAxisAngle(rotationAxis, rotationAngle.current)
 		}
 
@@ -338,16 +360,16 @@ export function ThreeCanvas() {
 			timbreRandomness: { value: 0.55, min: 0, max: 1, step: 0.01, label: 'Timbre variation' },
 		}, { collapsed: true }),
 		'Slow motion': folder({
-			slowMotionCooldown: { value: 0.35, min: 0.2, max: 3, step: 0.05, label: 'Cooldown' },
-			slowMotionDuration: { value: 2.2, min: 0.5, max: 6, step: 0.05, label: 'Duration' },
-			slowMotionVelocityStretch: { value: 0.25, min: 0, max: 4, step: 0.05, label: 'Velocity stretch' },
-			slowMotionPitch: { value: 48, min: 18, max: 90, step: 1, label: 'Low pitch' },
-			slowMotionPitchDrop: { value: 2, min: 0, max: 36, step: 1, label: 'Pitch drop' },
-			slowMotionCutoff: { value: 130, min: 35, max: 800, step: 5, label: 'Low cutoff' },
-			slowMotionCutoffStretch: { value: 500, min: 0, max: 3000, step: 25, label: 'Velocity cutoff' },
-			slowMotionResonance: { value: 15.5, min: 0.1, max: 18, step: 0.1, label: 'Resonance' },
-			slowMotionRumbleLevel: { value: 0.16, min: 0, max: 0.7, step: 0.005, label: 'Growl level' },
-			slowMotionNoiseLevel: { value: 0.42, min: 0, max: 0.5, step: 0.005, label: 'Dark texture' },
+			slowMotionCooldown: { value: 1.5, min: 0.2, max: 3, step: 0.05, label: 'Cooldown' },
+			slowMotionDuration: { value: 5.45, min: 0.5, max: 6, step: 0.05, label: 'Duration' },
+			slowMotionVelocityStretch: { value: 2.55, min: 0, max: 4, step: 0.05, label: 'Velocity stretch' },
+			slowMotionPitch: { value: 51, min: 18, max: 90, step: 1, label: 'Low pitch' },
+			slowMotionPitchDrop: { value: 17, min: 0, max: 36, step: 1, label: 'Pitch drop' },
+			slowMotionCutoff: { value: 170, min: 35, max: 800, step: 5, label: 'Low cutoff' },
+			slowMotionCutoffStretch: { value: 900, min: 0, max: 3000, step: 25, label: 'Velocity cutoff' },
+			slowMotionResonance: { value: 13.2, min: 0.1, max: 18, step: 0.1, label: 'Resonance' },
+			slowMotionRumbleLevel: { value: 0.43, min: 0, max: 0.7, step: 0.005, label: 'Growl level' },
+			slowMotionNoiseLevel: { value: 0.34, min: 0, max: 0.5, step: 0.005, label: 'Dark texture' },
 			slowMotionImpactLevel: { value: 0, min: 0, max: 0.7, step: 0.005, label: 'Impact level' },
 			slowMotionOutput: { value: 1.5, min: 0.25, max: 2, step: 0.05, label: 'Output boost' },
 		}, { collapsed: true }),
@@ -359,6 +381,10 @@ export function ThreeCanvas() {
 	const columnCount = getProjectColumnCount(projects.length)
 	const cameraEndY = -5.3 - (columnCount - 1) * COLUMN_SPACING
 	const sphereEndY = cameraEndY - 0.4
+	const sectionHeightVariables = {
+		'--desktop-canvas-height': `${columnCount * DESKTOP_SCROLL_HEIGHT_PER_COLUMN}vh`,
+		'--mobile-canvas-height': `${columnCount * MOBILE_SCROLL_HEIGHT_PER_COLUMN}svh`,
+	} as CSSProperties
 
 	const enableAudio = useCallback(() => {
 		try {
@@ -415,14 +441,14 @@ export function ThreeCanvas() {
 	}
 	const handleColumnMotion = useCallback((velocity: number, direction: number) => {
 		const rig = audioRig.current
-		if (!rig || !audioEnabledRef.current) return
+		if (!rig || !audioEnabledRef.current || mobilePerformance) return
 		triggerColumnSlowMotion(rig, audioSettings, velocity, direction)
-	}, [audioSettings])
+	}, [audioSettings, mobilePerformance])
 
 	return (
-		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 120}vh` }}>
+		<section id="neuron-canvas" className="three-canvas-section relative w-full bg-transparent" style={sectionHeightVariables}>
 			{/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(110,255,214,0.16),transparent_42%),linear-gradient(180deg,#0b1513_0%,#07110f_100%)]" /> */}
-			<div className="sticky top-0 z-10 h-screen w-full" style={{ touchAction: 'pan-y' }}>
+			<div className="three-canvas-sticky sticky top-0 z-10 h-screen w-full" style={{ touchAction: 'pan-y' }}>
 				<Canvas
 					camera={{ position: [0, 0, 5], fov: DESKTOP_FOV_MAX }}
 					dpr={mobilePerformance ? [1, 3] : [1, 2]}
@@ -431,7 +457,7 @@ export function ThreeCanvas() {
 					style={{ touchAction: 'pan-y' }}
 				>
 					<ResponsiveCameraFov />
-					<PointerAudioModulator rigRef={audioRig} settings={audioSettings} enabled={audioEnabled} scrollProgress={scrollYProgress} />
+					<PointerAudioModulator rigRef={audioRig} settings={audioSettings} enabled={audioEnabled} />
 					{/* <color attach="background" args={["#07110f"]} /> */}
 					{/* <ambientLight intensity={0.8} /> */}
 					{/* <directionalLight position={[4, 6, 5]} intensity={1.8} color="#d6fff1" /> */}
@@ -474,7 +500,7 @@ export function ThreeCanvas() {
 						fill
 						titleBar={{ title: 'Gesture Noise Lab', drag: false, filter: false }}
 						hideCopyButton
-						hidden={true}
+						hidden={false}
 					/>
 				</aside>
 				<button

@@ -25,6 +25,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.three-canvas-section {
+  height: var(--desktop-canvas-height);
+}
+
+.three-canvas-sticky {
+  height: 100vh;
+}
+
 /* Drei's Html helper uses implicit absolute-position anchors internally.
    Keep those wrappers LTR even though the document content is RTL. */
 .project-panel-html {
@@ -300,6 +308,14 @@ body {
 
 /* iOS/WebKit: keep transformed DOM layers at standard density to avoid oversized GPU textures. */
 @media (max-width: 640px) {
+  .three-canvas-section {
+    height: var(--mobile-canvas-height);
+  }
+
+  .three-canvas-sticky {
+    height: 100svh;
+  }
+
   .project-panel__info {
     padding: 64px;
   }
