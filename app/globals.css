@@ -39,6 +39,13 @@ body {
   direction: ltr;
 }
 
+/* Safari needs preserve-3d repeated across Drei's generated wrapper stack. */
+.project-panel-html > div,
+.project-panel-html > div > div {
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+}
+
 .project-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
