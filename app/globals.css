@@ -297,3 +297,182 @@ body {
   padding: 24px 36px;
   font-size: 24px;
 }
+
+/* iOS/WebKit: keep transformed DOM layers at standard density to avoid oversized GPU textures. */
+@media (max-width: 640px) {
+  .project-panel__info {
+    padding: 64px;
+  }
+
+  .project-panel__eyebrow {
+    margin-bottom: 32px;
+    font-size: 24px;
+  }
+
+  .project-panel__title {
+    margin-bottom: 32px;
+    font-size: 72px;
+  }
+
+  .project-panel__blurb {
+    margin-bottom: 40px;
+    font-size: 30px;
+  }
+
+  .project-panel__metrics {
+    gap: 48px;
+    margin-bottom: 40px;
+    padding-block: 32px;
+    border-block-width: 1px;
+  }
+
+  .project-panel__metric strong {
+    font-size: 36px;
+  }
+
+  .project-panel__metric span {
+    margin-top: 4px;
+    font-size: 18px;
+  }
+
+  .project-panel__tags {
+    gap: 24px;
+  }
+
+  .project-panel__tags span {
+    padding: 20px 32px;
+    border-width: 1px;
+    font-size: 20px;
+  }
+
+  .project-panel[data-layout="image-dominant"] .project-panel__info {
+    padding: 30px 24px;
+  }
+
+  .project-panel[data-layout="image-dominant"] .project-panel__eyebrow {
+    margin-bottom: 20px;
+    font-size: 16px;
+  }
+
+  .project-panel[data-layout="image-dominant"] .project-panel__title {
+    margin-bottom: 22px;
+    font-size: 42px;
+  }
+
+  .project-panel[data-layout="image-dominant"] .project-panel__blurb {
+    margin-bottom: 24px;
+    font-size: 12px;
+  }
+
+  .project-panel[data-layout="image-dominant"] .project-panel__metrics {
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-block: 20px;
+  }
+
+  .project-panel[data-layout="image-dominant"] .project-panel__metric strong {
+    font-size: 28px;
+  }
+
+  .project-panel[data-layout="image-dominant"] .project-panel__metric span,
+  .project-panel[data-layout="image-dominant"] .project-panel__tags span {
+    font-size: 14px;
+  }
+
+  .project-panel[data-layout="image-dominant"] .project-panel__tags {
+    gap: 12px;
+  }
+
+  .project-panel[data-layout="image-dominant"] .project-panel__tags span {
+    padding: 12px 16px;
+  }
+
+  .project-panel[data-layout="compact-equal"] .project-panel__info {
+    padding: 36px;
+  }
+
+  .project-panel[data-layout="compact-equal"] .project-panel__eyebrow {
+    margin-bottom: 22px;
+    font-size: 18px;
+  }
+
+  .project-panel[data-layout="compact-equal"] .project-panel__title {
+    margin-bottom: 24px;
+    font-size: 50px;
+  }
+
+  .project-panel[data-layout="compact-equal"] .project-panel__blurb {
+    margin-bottom: 28px;
+    font-size: 22px;
+  }
+
+  .project-panel[data-layout="compact-equal"] .project-panel__metrics {
+    gap: 28px;
+    margin-bottom: 28px;
+    padding-block: 22px;
+  }
+
+  .project-panel[data-layout="compact-equal"] .project-panel__metric strong {
+    font-size: 30px;
+  }
+
+  .project-panel[data-layout="compact-equal"] .project-panel__metric span {
+    font-size: 15px;
+  }
+
+  .project-panel[data-layout="compact-equal"] .project-panel__tags {
+    gap: 14px;
+  }
+
+  .project-panel[data-layout="compact-equal"] .project-panel__tags span {
+    padding: 14px 20px;
+    font-size: 16px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__image {
+    margin-right: 4px;
+    margin-top: 5px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__info {
+    padding: 30px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__eyebrow {
+    margin-bottom: 12px;
+    font-size: 10px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__title {
+    margin-bottom: 16px;
+    font-size: 32px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__blurb {
+    margin-bottom: 26px;
+    font-size: 10px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__metrics {
+    gap: 26px;
+    margin-bottom: 24px;
+    padding-block: 20px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__metric strong {
+    font-size: 22px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__metric span {
+    font-size: 10px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__tags {
+    gap: 12px;
+  }
+
+  .project-panel[data-layout="portrait"] .project-panel__tags span {
+    padding: 12px 18px;
+    font-size: 12px;
+  }
+}

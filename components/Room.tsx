@@ -134,6 +134,8 @@ const HALF_TURN_DISTANCE = 190
 const HALF_TURN_VELOCITY = 1.1
 const MOBILE_ROTATION_BREAKPOINT = 640
 const MOBILE_PROJECT_ROTATIONS = [-24, -22, -10, 0].map(THREE.MathUtils.degToRad)
+const TOUCH_SCROLL_INTENT_DISTANCE = 12
+const TOUCH_AXIS_DOMINANCE = 1.1
 
 function getMobileProjectRotation(rotation: number) {
   const projectIndex = ((-Math.round(rotation / QUARTER_TURN)) % PROJECTS_PER_COLUMN + PROJECTS_PER_COLUMN) % PROJECTS_PER_COLUMN
@@ -143,6 +145,12 @@ function getMobileProjectRotation(rotation: number) {
 type PointerCaptureTarget = {
   setPointerCapture: (pointerId: number) => void
   releasePointerCapture: (pointerId: number) => void
+}
+
+type GestureIntent = 'pending' | 'rotate' | 'scroll'
+
+function isTouchEvent(event: ThreeEvent<PointerEvent>) {
+  return event.pointerType === 'touch' || event.nativeEvent.pointerType === 'touch'
 }
 
 type ColumnSectionProps = {
@@ -172,15 +180,56 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
   const dragOriginRotation = useRef(0)
   const dragPreviewRotation = useRef(0)
   const dragStartX = useRef(0)
+  const dragStartY = useRef(0)
   const dragStartTime = useRef(0)
   const lastPointerX = useRef(0)
   const lastPointerTime = useRef(0)
   const isDragging = useRef(false)
+  const gestureIntent = useRef<GestureIntent>('pending')
+  const capturedPointerId = useRef<number | null>(null)
+
+  const capturePointer = (event: ThreeEvent<PointerEvent>) => {
+    if (capturedPointerId.current === event.pointerId) return
+    const pointerTarget = event.target as unknown as PointerCaptureTarget
+    pointerTarget.setPointerCapture(event.pointerId)
+    capturedPointerId.current = event.pointerId
+  }
+
+  const releasePointer = (event: ThreeEvent<PointerEvent>) => {
+    if (capturedPointerId.current !== event.pointerId) return
+    const pointerTarget = event.target as unknown as PointerCaptureTarget
+    pointerTarget.releasePointerCapture(event.pointerId)
+    capturedPointerId.current = null
+  }
 
   const rotateFromDrag = (event: ThreeEvent<PointerEvent>) => {
     if (!isDragging.current) return
 
     const distance = event.nativeEvent.clientX - dragStartX.current
+    const verticalDistance = event.nativeEvent.clientY - dragStartY.current
+
+    if (isTouchEvent(event) && gestureIntent.current === 'pending') {
+      const horizontalDelta = Math.abs(distance)
+      const verticalDelta = Math.abs(verticalDistance)
+
+      if (verticalDelta >= TOUCH_SCROLL_INTENT_DISTANCE && verticalDelta > horizontalDelta * TOUCH_AXIS_DOMINANCE) {
+        gestureIntent.current = 'scroll'
+        dragPreviewRotation.current = dragOriginRotation.current
+        isDragging.current = false
+        releasePointer(event)
+        return
+      }
+
+      if (horizontalDelta < TOUCH_SCROLL_INTENT_DISTANCE || horizontalDelta <= verticalDelta * TOUCH_AXIS_DOMINANCE) {
+        return
+      }
+
+      gestureIntent.current = 'rotate'
+      capturePointer(event)
+    }
+
+    if (gestureIntent.current !== 'rotate') return
+
     dragPreviewRotation.current = dragOriginRotation.current + (distance / DRAG_DISTANCE_PER_TURN) * QUARTER_TURN
     lastPointerX.current = event.nativeEvent.clientX
     lastPointerTime.current = event.nativeEvent.timeStamp
@@ -189,18 +238,26 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
   const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation()
     isDragging.current = true
+    gestureIntent.current = isTouchEvent(event) ? 'pending' : 'rotate'
     dragStartX.current = event.nativeEvent.clientX
+    dragStartY.current = event.nativeEvent.clientY
     dragStartTime.current = event.nativeEvent.timeStamp
     lastPointerX.current = event.nativeEvent.clientX
     lastPointerTime.current = event.nativeEvent.timeStamp
     dragOriginRotation.current = targetRotation.current
     dragPreviewRotation.current = targetRotation.current
-    const pointerTarget = event.target as unknown as PointerCaptureTarget
-    pointerTarget.setPointerCapture(event.pointerId)
+    if (gestureIntent.current === 'rotate') capturePointer(event)
   }
 
   const handlePointerUp = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation()
+    if (!isDragging.current || gestureIntent.current !== 'rotate') {
+      isDragging.current = false
+      gestureIntent.current = 'pending'
+      releasePointer(event)
+      return
+    }
+
     const distance = event.nativeEvent.clientX - dragStartX.current
     const totalDuration = Math.max(event.nativeEvent.timeStamp - dragStartTime.current, 1)
     const sampleDuration = Math.max(event.nativeEvent.timeStamp - lastPointerTime.current, 1)
@@ -221,13 +278,17 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
     }
 
     isDragging.current = false
-    const pointerTarget = event.target as unknown as PointerCaptureTarget
-    pointerTarget.releasePointerCapture(event.pointerId)
+    gestureIntent.current = 'pending'
+    releasePointer(event)
   }
 
   const handlePointerCancel = () => {
-    targetRotation.current = dragOriginRotation.current
+    if (isDragging.current && gestureIntent.current === 'rotate') {
+      targetRotation.current = dragOriginRotation.current
+    }
     isDragging.current = false
+    gestureIntent.current = 'pending'
+    capturedPointerId.current = null
   }
 
   useFrame((_, delta) => {
@@ -309,10 +370,12 @@ export function Room({ onAnchorChange, onColumnMotion, ...props }: JSX.Intrinsic
   return (
     <group {...props} dispose={null}>
       <group>
-        <mesh geometry={nodes.room.geometry} material={materials.Cardboard} castShadow receiveShadow>
-          <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
-        </mesh>
-          <InkEdges edges={roomEdges} scale={[1, 1, 1]} />
+        <group >
+          <mesh geometry={nodes.room.geometry} material={materials.Cardboard} castShadow receiveShadow scale={[1.2, 1.3, 1]}>
+            <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
+          </mesh>
+          <InkEdges edges={roomEdges} scale={[1.2, 1.3, 1]} />
+        </group>
         <group position={[0, -0.8725, 0]}>
           <ColumnSystem geometry={nodes.columns.geometry} edges={columnsEdges} onAnchorChange={onAnchorChange} onColumnMotion={onColumnMotion} />
         </group>

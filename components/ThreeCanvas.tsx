@@ -170,13 +170,33 @@ function ResponsiveCameraFov() {
 	return null
 }
 
-function ScrollCamera({ scrollYProgress, endY }: { scrollYProgress: MotionValue<number>, endY: number }) {
+function useMobilePerformanceProfile() {
+	const [isMobile, setIsMobile] = useState(true)
+
+	useEffect(() => {
+		const media = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`)
+		const updateProfile = () => setIsMobile(media.matches)
+
+		updateProfile()
+		if (typeof media.addEventListener === 'function') {
+			media.addEventListener('change', updateProfile)
+			return () => media.removeEventListener('change', updateProfile)
+		}
+
+		media.addListener(updateProfile)
+		return () => media.removeListener(updateProfile)
+	}, [])
+
+	return isMobile
+}
+
+function ScrollCamera({ scrollYProgress, endY, mobilePerformance }: { scrollYProgress: MotionValue<number>, endY: number, mobilePerformance: boolean }) {
 	const cameraControls = useRef<CameraControlsImpl>(null)
 
 	useFrame((state) => {
 		const scrollProgress = scrollYProgress.get()
-		const pointerOffsetX = state.pointer.x * 0.18
-		const pointerOffsetY = state.pointer.y * 0.2
+		const pointerOffsetX = mobilePerformance ? 0 : state.pointer.x * 0.18
+		const pointerOffsetY = mobilePerformance ? 0 : state.pointer.y * 0.2
 		const targetY = THREE.MathUtils.lerp(0, endY, scrollProgress)
 
 		cameraControls.current?.setLookAt(
@@ -205,11 +225,12 @@ class ColumnAnchorStore {
 	}
 }
 
-function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY }: { scrollYProgress: MotionValue<number>, anchorStore: ColumnAnchorStore, columnCount: number, endY: number }) {
+function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY, mobilePerformance }: { scrollYProgress: MotionValue<number>, anchorStore: ColumnAnchorStore, columnCount: number, endY: number, mobilePerformance: boolean }) {
 	const sphere = useRef<THREE.Mesh>(null)
 	const material = useRef<THREE.ShaderMaterial>(null)
 	const rotationAngle = useRef(0)
 	const pointerProximity = useRef(1)
+	const sphereSegments = mobilePerformance ? 96 : 256
 	const rotationAxis = useMemo(() => new THREE.Vector3(
 		THREE.MathUtils.randFloatSpread(2),
 		THREE.MathUtils.randFloatSpread(2),
@@ -246,7 +267,7 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY }: { scr
 			sphere.current.position.x = THREE.MathUtils.damp(sphere.current.position.x, targetX, 2, delta)
 			sphere.current.position.y = THREE.MathUtils.damp(sphere.current.position.y, targetY, 2, delta)
 			sphere.current.position.z = THREE.MathUtils.damp(sphere.current.position.z, targetZ, 2, delta)
-			rotationAngle.current = THREE.MathUtils.damp(rotationAngle.current, scrollProgress * Math.PI * 4, 5, delta)
+			rotationAngle.current = THREE.MathUtils.damp(rotationAngle.current, scrollProgress * Math.PI * 4, 9, delta)
 			sphere.current.setRotationFromAxisAngle(rotationAxis, rotationAngle.current)
 		}
 
@@ -264,7 +285,7 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY }: { scr
 
 	return (
 		<mesh ref={sphere} position={[SPHERE_PATH.startX, SPHERE_PATH.startY, SPHERE_PATH.z]}>
-			<sphereGeometry args={[0.62, 256, 256]} />
+			<sphereGeometry key={sphereSegments} args={[0.62, sphereSegments, sphereSegments]} />
 			<shaderMaterial ref={material} vertexShader={WOBBLE_VERTEX_SHADER} fragmentShader={WOBBLE_FRAGMENT_SHADER} uniforms={uniforms} />
 		</mesh>
 	)
@@ -272,6 +293,7 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY }: { scr
 
 export function ThreeCanvas() {
 	const { scrollYProgress } = useScroll()
+	const mobilePerformance = useMobilePerformanceProfile()
 	const audioControlStore = useCreateStore()
 	const audioSettings = useControls({
 		Output: folder({
@@ -394,8 +416,14 @@ export function ThreeCanvas() {
 	return (
 		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 160}vh` }}>
 			{/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(110,255,214,0.16),transparent_42%),linear-gradient(180deg,#0b1513_0%,#07110f_100%)]" /> */}
-			<div className="sticky top-0 z-10 h-screen w-full">
-				<Canvas camera={{ position: [0, 0, 5], fov: DESKTOP_FOV_MAX }} dpr={[1, 2]} gl={{ antialias: false, powerPreference: 'high-performance' }} className="h-full w-full">
+			<div className="sticky top-0 z-10 h-screen w-full" style={{ touchAction: 'pan-y' }}>
+				<Canvas
+					camera={{ position: [0, 0, 5], fov: DESKTOP_FOV_MAX }}
+					dpr={mobilePerformance ? [1, 1.25] : [1, 2]}
+					gl={{ antialias: false, powerPreference: mobilePerformance ? 'default' : 'high-performance' }}
+					className="h-full w-full"
+					style={{ touchAction: 'pan-y' }}
+				>
 					<ResponsiveCameraFov />
 					<PointerAudioModulator rigRef={audioRig} settings={audioSettings} enabled={audioEnabled} scrollProgress={scrollYProgress} />
 					{/* <color attach="background" args={["#07110f"]} /> */}
@@ -412,10 +440,10 @@ export function ThreeCanvas() {
 							onColumnMotion={handleColumnMotion}
 						/>
 						{/* <Float floatIntensity={1} floatingRange={[-0.1, 0.1]} rotationIntensity={1} speed={3}> */}
-						<WobbleSphere scrollYProgress={scrollYProgress} anchorStore={anchorStore} columnCount={columnCount} endY={sphereEndY} />
+						<WobbleSphere scrollYProgress={scrollYProgress} anchorStore={anchorStore} columnCount={columnCount} endY={sphereEndY} mobilePerformance={mobilePerformance} />
 						{/* </Float> */}
 					</Suspense>
-					<ScrollCamera scrollYProgress={scrollYProgress} endY={cameraEndY} />
+					<ScrollCamera scrollYProgress={scrollYProgress} endY={cameraEndY} mobilePerformance={mobilePerformance} />
 					{/* <EffectComposer multisampling={0} enableNormalPass={false}>
 					<Bloom
 						intensity={1.25}

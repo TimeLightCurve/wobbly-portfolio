@@ -1,7 +1,7 @@
 'use client'
 
 import { Html } from '@react-three/drei'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { AnimatePresence, motion } from 'motion/react'
 import Image from 'next/image'
 import { useMemo, useRef, useState } from 'react'
@@ -42,10 +42,14 @@ const FACE_SHOW_DURATION = 0.3
 const FACE_HIDE_DURATION = 0.1
 const FACE_SURFACE_GAP = 0.006
 
-const HTML_DISTANCE_FACTOR = 0.5
-const CSS_PIXELS_PER_WORLD_UNIT = 400 / HTML_DISTANCE_FACTOR
+const BASE_CSS_PIXELS_PER_WORLD_UNIT = 400
+const MOBILE_RASTER_BREAKPOINT = 640
 
 function ProjectFace({ project, layout, position, rotation, width, height, channelWidth }: ProjectFaceProps) {
+	const viewportWidth = useThree((state) => state.size.width)
+	const rasterDensity = viewportWidth <= MOBILE_RASTER_BREAKPOINT ? 1 : 2
+	const htmlDistanceFactor = 1 / rasterDensity
+	const cssPixelsPerWorldUnit = BASE_CSS_PIXELS_PER_WORLD_UNIT / htmlDistanceFactor
 	const face = useRef<THREE.Group>(null)
 	const faceVisibility = useRef(false)
 	const [isVisible, setIsVisible] = useState(false)
@@ -54,15 +58,16 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 	const faceNormal = useMemo(() => new THREE.Vector3(), [])
 	const cameraDirection = useMemo(() => new THREE.Vector3(), [])
 	const panelSize = useMemo(() => ({
-		width: width * CSS_PIXELS_PER_WORLD_UNIT,
-		height: height * CSS_PIXELS_PER_WORLD_UNIT,
-		gap: channelWidth * CSS_PIXELS_PER_WORLD_UNIT,
-	}), [channelWidth, height, width])
+		width: width * cssPixelsPerWorldUnit,
+		height: height * cssPixelsPerWorldUnit,
+		gap: channelWidth * cssPixelsPerWorldUnit,
+	}), [channelWidth, cssPixelsPerWorldUnit, height, width])
+	const imageDensityMultiplier = rasterDensity === 1 ? 1 : 2
 	const imageSizes = layout === 'portrait'
-		? '20vw'
+		? `${10 * imageDensityMultiplier}vw`
 		: layout === 'compact-equal'
-			? '60vw'
-			: '100vw'
+			? `${30 * imageDensityMultiplier}vw`
+			: `${50 * imageDensityMultiplier}vw`
 
 	useFrame(({ camera }) => {
 		if (!face.current) return
@@ -86,7 +91,7 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 		<group ref={face} position={position} rotation={rotation}>
 			<Html
 				transform
-				distanceFactor={HTML_DISTANCE_FACTOR}
+				distanceFactor={htmlDistanceFactor}
 				pointerEvents="none"
 				wrapperClass="project-panel-html"
 				style={{
