@@ -45,8 +45,8 @@ body {
   position: relative;
   align-self: center;
   justify-self: center;
-  width: 100%;
-  height: 100%;
+  width: 99%;
+  height: 99%;
   min-height: 0;
   overflow: hidden;
   background: #000;
@@ -63,37 +63,37 @@ body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 64px;
+  padding: 128px;
 }
 
 .project-panel__eyebrow {
-  margin-bottom: 32px;
+  margin-bottom: 64px;
   color: rgb(255 255 255 / 50%);
-  font-size: 24px;
+  font-size: 48px;
   letter-spacing: 0.28em;
   text-transform: uppercase;
 }
 
 .project-panel__title {
-  margin-bottom: 32px;
-  font-size: 72px;
+  margin-bottom: 64px;
+  font-size: 144px;
   font-weight: 600;
   line-height: 0.98;
 }
 
 .project-panel__blurb {
-  margin-bottom: 40px;
+  margin-bottom: 80px;
   color: rgb(255 255 255 / 70%);
-  font-size: 30px;
+  font-size: 60px;
   line-height: 1.34;
 }
 
 .project-panel__metrics {
   display: flex;
-  gap: 48px;
-  margin-bottom: 40px;
-  padding-block: 32px;
-  border-block: 1px solid rgb(255 255 255 / 15%);
+  gap: 96px;
+  margin-bottom: 80px;
+  padding-block: 64px;
+  border-block: 2px solid rgb(255 255 255 / 15%);
 }
 
 .project-panel__metric strong,
@@ -102,14 +102,14 @@ body {
 }
 
 .project-panel__metric strong {
-  font-size: 36px;
+  font-size: 72px;
   line-height: 1.1;
 }
 
 .project-panel__metric span {
-  margin-top: 4px;
+  margin-top: 8px;
   color: rgb(255 255 255 / 45%);
-  font-size: 18px;
+  font-size: 36px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -117,76 +117,77 @@ body {
 .project-panel__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 24px;
+  gap: 48px;
 }
 
 .project-panel__tags span {
-  padding: 20px 32px;
-  border: 1px solid rgb(255 255 255 / 20%);
+  padding: 40px 64px;
+  border: 2px solid rgb(255 255 255 / 20%);
   color: rgb(255 255 255 / 70%);
-  font-size: 20px;
+  font-size: 40px;
 }
 
 /* Face 2: preserve both physical walls, fill the image wall, and narrow the info block. */
 .project-panel[data-layout="image-dominant"] .project-panel__image {
-  width: 100%;
-  height: 100%;
+  width: 99%;
+  height: 99%;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__info {
   justify-self: start;
   width: 32%;
   height: 86%;
-  padding: 30px 24px;
+  padding: 60px 48px;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__eyebrow {
-  margin-bottom: 20px;
-  font-size: 16px;
+  margin-bottom: 40px;
+  font-size: 32px;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__title {
-  margin-bottom: 22px;
-  font-size: 42px;
+  margin-bottom: 44px;
+  font-size: 84px;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__blurb {
-  margin-bottom: 24px;
-  font-size: 12px;
+  margin-bottom: 48px;
+  font-size: 24px;
   line-height: 1.35;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__metrics {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
-  margin-bottom: 24px;
-  padding-block: 20px;
+  gap: 32px;
+  margin-bottom: 48px;
+  padding-block: 40px;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__metric strong {
-  font-size: 28px;
+  font-size: 56px;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__metric span,
 .project-panel[data-layout="image-dominant"] .project-panel__tags span {
-  font-size: 14px;
+  font-size: 28px;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__tags {
-  gap: 12px;
+  gap: 24px;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__tags span {
-  padding: 12px 16px;
+  padding: 24px 32px;
 }
 
 /* Face 3: each block occupies 80% of its wall, about 40% of the complete face. */
 .project-panel[data-layout="compact-equal"] .project-panel__image{
   width: 50%;
-  height: 100%;
+  height: 990%;
   justify-self: end;
   align-self: flex-start;
+  margin-right: 2px;
 }
 .project-panel[data-layout="compact-equal"] .project-panel__info {
   width: 80%;
@@ -195,46 +196,46 @@ body {
 }
 
 .project-panel[data-layout="compact-equal"] .project-panel__info {
-  padding: 36px;
+  padding: 72px;
 }
 
 .project-panel[data-layout="compact-equal"] .project-panel__eyebrow {
-  margin-bottom: 22px;
-  font-size: 18px;
+  margin-bottom: 44px;
+  font-size: 36px;
 }
 
 .project-panel[data-layout="compact-equal"] .project-panel__title {
-  margin-bottom: 24px;
-  font-size: 50px;
+  margin-bottom: 48px;
+  font-size: 100px;
 }
 
 .project-panel[data-layout="compact-equal"] .project-panel__blurb {
-  margin-bottom: 28px;
-  font-size: 22px;
+  margin-bottom: 56px;
+  font-size: 44px;
   line-height: 1.4;
 }
 
 .project-panel[data-layout="compact-equal"] .project-panel__metrics {
-  gap: 28px;
-  margin-bottom: 28px;
-  padding-block: 22px;
+  gap: 56px;
+  margin-bottom: 56px;
+  padding-block: 44px;
 }
 
 .project-panel[data-layout="compact-equal"] .project-panel__metric strong {
-  font-size: 30px;
+  font-size: 60px;
 }
 
 .project-panel[data-layout="compact-equal"] .project-panel__metric span {
-  font-size: 15px;
+  font-size: 30px;
 }
 
 .project-panel[data-layout="compact-equal"] .project-panel__tags {
-  gap: 14px;
+  gap: 28px;
 }
 
 .project-panel[data-layout="compact-equal"] .project-panel__tags span {
-  padding: 14px 20px;
-  font-size: 16px;
+  padding: 28px 40px;
+  font-size: 32px;
 }
 
 /* Face 4: two compact cards anchored to the bottom-right of their physical walls. */
@@ -242,12 +243,12 @@ body {
   align-self: start;
   justify-self: end;
   width: auto;
-  height: 100%;
+  height: 99%;
   width: 60%;
   /* aspect-ratio: 9 / 16; */
   /* margin-bottom: 0px; */
-  margin-right: 4px;
-  margin-top: 5px;
+  margin-right: 8px;
+  margin-top: 10px;
 }
 
 .project-panel[data-layout="portrait"] .project-panel__info {
@@ -255,44 +256,44 @@ body {
   justify-self: start;
   width: 42%;
   height: 62%;
-  padding: 30px;
+  padding: 60px;
 }
 
 .project-panel[data-layout="portrait"] .project-panel__eyebrow {
-  margin-bottom: 12px;
-  font-size: 10px;
+  margin-bottom: 24px;
+  font-size: 20px;
 }
 
 .project-panel[data-layout="portrait"] .project-panel__title {
-  margin-bottom: 16px;
-  font-size: 32px;
+  margin-bottom: 32px;
+  font-size: 64px;
 }
 
 .project-panel[data-layout="portrait"] .project-panel__blurb {
-  margin-bottom: 26px;
-  font-size: 10px;
+  margin-bottom: 52px;
+  font-size: 20px;
   line-height: 1.35;
 }
 
 .project-panel[data-layout="portrait"] .project-panel__metrics {
-  gap: 26px;
-  margin-bottom: 24px;
-  padding-block: 20px;
+  gap: 52px;
+  margin-bottom: 48px;
+  padding-block: 40px;
 }
 
 .project-panel[data-layout="portrait"] .project-panel__metric strong {
-  font-size: 22px;
+  font-size: 44px;
 }
 
 .project-panel[data-layout="portrait"] .project-panel__metric span {
-  font-size: 10px;
+  font-size: 20px;
 }
 
 .project-panel[data-layout="portrait"] .project-panel__tags {
-  gap: 12px;
+  gap: 24px;
 }
 
 .project-panel[data-layout="portrait"] .project-panel__tags span {
-  padding: 12px 18px;
-  font-size: 12px;
+  padding: 24px 36px;
+  font-size: 24px;
 }

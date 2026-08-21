@@ -132,6 +132,13 @@ const DRAG_DISTANCE_PER_TURN = 120
 const MIN_DRAG_DISTANCE = 28
 const HALF_TURN_DISTANCE = 190
 const HALF_TURN_VELOCITY = 1.1
+const MOBILE_ROTATION_BREAKPOINT = 640
+const MOBILE_PROJECT_ROTATIONS = [-24, -22, -10, 0].map(THREE.MathUtils.degToRad)
+
+function getMobileProjectRotation(rotation: number) {
+  const projectIndex = ((-Math.round(rotation / QUARTER_TURN)) % PROJECTS_PER_COLUMN + PROJECTS_PER_COLUMN) % PROJECTS_PER_COLUMN
+  return MOBILE_PROJECT_ROTATIONS[projectIndex] ?? 0
+}
 
 type PointerCaptureTarget = {
   setPointerCapture: (pointerId: number) => void
@@ -149,6 +156,8 @@ type ColumnSectionProps = {
 }
 
 function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects, onAnchorChange, onColumnMotion }: ColumnSectionProps) {
+  const viewportWidth = useThree((state) => state.size.width)
+  const initialRestingRotation = viewportWidth <= MOBILE_ROTATION_BREAKPOINT ? getMobileProjectRotation(0) : 0
   const columns = useRef<THREE.Group>(null)
   const columnCenter = useRef<THREE.Group>(null)
   const anchorPosition = useRef(new THREE.Vector3())
@@ -224,7 +233,11 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
   useFrame((_, delta) => {
     if (!columns.current) return
 
-    const rotation = isDragging.current ? dragPreviewRotation.current : targetRotation.current
+    const baseRotation = isDragging.current ? dragPreviewRotation.current : targetRotation.current
+    const restingRotation = viewportWidth <= MOBILE_ROTATION_BREAKPOINT
+      ? getMobileProjectRotation(isDragging.current ? dragOriginRotation.current : targetRotation.current)
+      : 0
+    const rotation = baseRotation + restingRotation
     columns.current.rotation.y = THREE.MathUtils.damp(columns.current.rotation.y, rotation, isDragging.current ? 4 : 2, delta)
     columns.current.updateWorldMatrix(true, false)
 
@@ -248,7 +261,7 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
         <planeGeometry args={[4.8, 3.8]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-      <group ref={columns} position={[COLUMN_PIVOT_X, centerY, COLUMN_PIVOT_Z]}>
+      <group ref={columns} position={[COLUMN_PIVOT_X, centerY, COLUMN_PIVOT_Z]} rotation={[0, initialRestingRotation, 0]}>
         <group ref={columnCenter} position={[COLUMN_MESH_OFFSET_X, COLUMN_MESH_OFFSET_Y, COLUMN_MESH_OFFSET_Z]}>
           <mesh geometry={geometry} castShadow receiveShadow scale={[1, COLUMN_MESH_SCALE_Y, 1]}>
             <meshStandardMaterial color="#202020" polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />

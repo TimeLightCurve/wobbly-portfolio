@@ -133,6 +133,43 @@ const SPHERE_PATH = {
 	startY: 0.2,
 }
 
+const MOBILE_FOV = 80
+const DESKTOP_FOV_MAX = 60
+const DESKTOP_FOV_MIN = 40
+const MOBILE_BREAKPOINT = 640
+const DESKTOP_BREAKPOINT = 1024
+const WIDE_DESKTOP_BREAKPOINT = 1920
+
+function getResponsiveFov(viewportWidth: number) {
+	if (viewportWidth <= MOBILE_BREAKPOINT) return MOBILE_FOV
+
+	if (viewportWidth < DESKTOP_BREAKPOINT) {
+		const tabletProgress = (viewportWidth - MOBILE_BREAKPOINT) / (DESKTOP_BREAKPOINT - MOBILE_BREAKPOINT)
+		return THREE.MathUtils.lerp(MOBILE_FOV, DESKTOP_FOV_MAX, tabletProgress)
+	}
+
+	const desktopProgress = THREE.MathUtils.clamp(
+		(viewportWidth - DESKTOP_BREAKPOINT) / (WIDE_DESKTOP_BREAKPOINT - DESKTOP_BREAKPOINT),
+		0,
+		1,
+	)
+	return THREE.MathUtils.lerp(DESKTOP_FOV_MAX, DESKTOP_FOV_MIN, desktopProgress)
+}
+
+function ResponsiveCameraFov() {
+	useFrame(({ camera, size }, delta) => {
+		if (!(camera instanceof THREE.PerspectiveCamera)) return
+
+		const nextFov = THREE.MathUtils.damp(camera.fov, getResponsiveFov(size.width), 8, delta)
+		if (Math.abs(camera.fov - nextFov) < 0.001) return
+
+		camera.fov = nextFov
+		camera.updateProjectionMatrix()
+	})
+
+	return null
+}
+
 function ScrollCamera({ scrollYProgress, endY }: { scrollYProgress: MotionValue<number>, endY: number }) {
 	const cameraControls = useRef<CameraControlsImpl>(null)
 
@@ -358,10 +395,11 @@ export function ThreeCanvas() {
 		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 260}vh` }}>
 			{/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(110,255,214,0.16),transparent_42%),linear-gradient(180deg,#0b1513_0%,#07110f_100%)]" /> */}
 			<div className="sticky top-0 z-10 h-screen w-full">
-				<Canvas camera={{ position: [0, 0, 5], fov: 40 }} dpr={[1, 2]} gl={{ antialias: false, powerPreference: 'high-performance' }} className="h-full w-full">
+				<Canvas camera={{ position: [0, 0, 5], fov: DESKTOP_FOV_MAX }} dpr={[1, 2]} gl={{ antialias: false, powerPreference: 'high-performance' }} className="h-full w-full">
+					<ResponsiveCameraFov />
 					<PointerAudioModulator rigRef={audioRig} settings={audioSettings} enabled={audioEnabled} scrollProgress={scrollYProgress} />
 					{/* <color attach="background" args={["#07110f"]} /> */}
-					<ambientLight intensity={0.1} />
+					{/* <ambientLight intensity={0.8} /> */}
 					{/* <directionalLight position={[4, 6, 5]} intensity={1.8} color="#d6fff1" /> */}
 					{/* <pointLight position={[-5, -2, 4]} intensity={1} color="#6ef3cf" /> */}
 					<Suspense fallback={null}>

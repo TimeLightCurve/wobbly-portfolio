@@ -42,9 +42,7 @@ const FACE_SHOW_DURATION = 0.3
 const FACE_HIDE_DURATION = 0.1
 const FACE_SURFACE_GAP = 0.006
 
-const HTML_DISTANCE_FACTOR = 1
-const HTML_RASTER_SCALE = 0.5
-const HTML_RASTER_SUPERSAMPLE = 2
+const HTML_DISTANCE_FACTOR = 0.5
 const CSS_PIXELS_PER_WORLD_UNIT = 400 / HTML_DISTANCE_FACTOR
 
 function ProjectFace({ project, layout, position, rotation, width, height, channelWidth }: ProjectFaceProps) {
@@ -89,7 +87,6 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 			<Html
 				transform
 				distanceFactor={HTML_DISTANCE_FACTOR}
-				scale={HTML_RASTER_SCALE}
 				pointerEvents="none"
 				wrapperClass="project-panel-html"
 				style={{
@@ -103,14 +100,6 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 						transformStyle: 'preserve-3d',
 					}}
 				>
-					<div
-						style={{
-							width: '100%',
-							height: '100%',
-							transform: `scale(${HTML_RASTER_SUPERSAMPLE})`,
-							transformOrigin: 'center center',
-						}}
-					>
 					<AnimatePresence initial={false}>
 						<motion.article
 							key={`info-${project.title}`}
@@ -160,7 +149,6 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 							</div>
 						</motion.article>
 					</AnimatePresence>
-					</div>
 				</div>
 			</Html>
 		</group>
