@@ -3,7 +3,7 @@
 import { Html } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import Image from 'next/image'
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { Project } from './projects'
 
@@ -15,7 +15,6 @@ type ProjectFaceProps = {
 	width: number
 	height: number
 	channelWidth: number
-	htmlYOffset: number
 }
 
 type ProjectPanelLayout = 'balanced' | 'image-dominant' | 'compact-equal' | 'portrait'
@@ -47,21 +46,8 @@ const FACE_SURFACE_GAP = 0.006
 
 const BASE_CSS_PIXELS_PER_WORLD_UNIT = 400
 const MOBILE_RASTER_BREAKPOINT = 640
-const IOS_HTML_Y_OFFSET = 0.145
 
-function useIOSWebKit() {
-	return useSyncExternalStore(
-		() => () => undefined,
-		() => {
-			const appleMobileDevice = /iPad|iPhone|iPod/.test(navigator.userAgent)
-			const touchEnabledMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
-			return appleMobileDevice || touchEnabledMac
-		},
-		() => false,
-	)
-}
-
-function ProjectFace({ project, layout, position, rotation, width, height, channelWidth, htmlYOffset }: ProjectFaceProps) {
+function ProjectFace({ project, layout, position, rotation, width, height, channelWidth }: ProjectFaceProps) {
 	const viewportWidth = useThree((state) => state.size.width)
 	const rasterDensity = viewportWidth <= MOBILE_RASTER_BREAKPOINT ? 1 : 2
 	const mobileRaster = rasterDensity === 1
@@ -108,7 +94,6 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 		<group ref={face} position={position} rotation={rotation}>
 			<Html
 				transform
-				position={[0, htmlYOffset, 0]}
 				distanceFactor={htmlDistanceFactor}
 				pointerEvents="none"
 				wrapperClass="project-panel-html"
@@ -178,7 +163,6 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 }
 
 export function ProjectPanels({ geometry, projects, scaleY }: { geometry: THREE.BufferGeometry, projects: Project[], scaleY: number }) {
-	const isIOSWebKit = useIOSWebKit()
 	const faces = useMemo(() => {
 		geometry.computeBoundingBox()
 		const bounds = geometry.boundingBox
@@ -236,7 +220,6 @@ export function ProjectPanels({ geometry, projects, scaleY }: { geometry: THREE.
 						key={project.title}
 						project={project}
 						layout={PROJECT_LAYOUTS[index] ?? 'balanced'}
-						htmlYOffset={isIOSWebKit ? IOS_HTML_Y_OFFSET : 0}
 						{...face}
 					/>
 				)

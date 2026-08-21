@@ -6,7 +6,7 @@ import { Canvas, useFrame } from '@react-three/fiber'
 // import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import { folder, LevaPanel, useControls, useCreateStore } from 'leva'
 import { useScroll, type MotionValue } from 'motion/react'
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import * as THREE from 'three'
 import {
 	createPointerAudioRig,
@@ -143,6 +143,49 @@ const DESKTOP_SCROLL_HEIGHT_PER_COLUMN = 120
 const MOBILE_SCROLL_HEIGHT_PER_COLUMN = 80
 const ANCHOR_TRANSITION_START = 0.12
 const ANCHOR_TRANSITION_END = 0.46
+
+function isIOSWebKitDevice() {
+	if (typeof navigator === 'undefined') return false
+	const appleMobileDevice = /iPad|iPhone|iPod/.test(navigator.userAgent)
+	const touchEnabledMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+	return appleMobileDevice || touchEnabledMac
+}
+
+function getEvenIOSViewportSnapshot() {
+	if (typeof window === 'undefined' || !isIOSWebKitDevice()) return ''
+	const visualViewport = window.visualViewport
+	const width = visualViewport?.width ?? document.documentElement.clientWidth
+	const height = visualViewport?.height ?? window.innerHeight
+	const evenWidth = Math.max(2, Math.floor(width / 2) * 2)
+	const evenHeight = Math.max(2, Math.floor(height / 2) * 2)
+	return `${evenWidth}:${evenHeight}`
+}
+
+function subscribeToIOSViewport(onStoreChange: () => void) {
+	if (typeof window === 'undefined' || !isIOSWebKitDevice()) return () => undefined
+	let orientationTimer: ReturnType<typeof setTimeout> | null = null
+	const handleOrientationChange = () => {
+		if (orientationTimer) clearTimeout(orientationTimer)
+		orientationTimer = setTimeout(onStoreChange, 250)
+	}
+	window.addEventListener('orientationchange', handleOrientationChange)
+
+	return () => {
+		window.removeEventListener('orientationchange', handleOrientationChange)
+		if (orientationTimer) clearTimeout(orientationTimer)
+	}
+}
+
+function useEvenIOSViewport() {
+	const snapshot = useSyncExternalStore(
+		subscribeToIOSViewport,
+		getEvenIOSViewportSnapshot,
+		() => '',
+	)
+	if (!snapshot) return null
+	const [width, height] = snapshot.split(':').map(Number)
+	return { width, height }
+}
 
 function getResponsiveFov(viewportWidth: number) {
 	if (viewportWidth <= MOBILE_BREAKPOINT) return MOBILE_FOV
@@ -316,6 +359,7 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY, mobileP
 export function ThreeCanvas() {
 	const { scrollYProgress } = useScroll()
 	const mobilePerformance = useMobilePerformanceProfile()
+	const iosViewport = useEvenIOSViewport()
 	const audioControlStore = useCreateStore()
 	const audioSettings = useControls({
 		Output: folder({
@@ -385,6 +429,14 @@ export function ThreeCanvas() {
 		'--desktop-canvas-height': `${columnCount * DESKTOP_SCROLL_HEIGHT_PER_COLUMN}vh`,
 		'--mobile-canvas-height': `${columnCount * MOBILE_SCROLL_HEIGHT_PER_COLUMN}svh`,
 	} as CSSProperties
+	const stickyViewportStyle = {
+		touchAction: 'pan-y',
+		...(iosViewport && {
+			width: `${iosViewport.width}px`,
+			height: `${iosViewport.height}px`,
+			marginInline: 'auto',
+		}),
+	} as CSSProperties
 
 	const enableAudio = useCallback(() => {
 		try {
@@ -448,7 +500,7 @@ export function ThreeCanvas() {
 	return (
 		<section id="neuron-canvas" className="three-canvas-section relative w-full bg-transparent" style={sectionHeightVariables}>
 			{/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(110,255,214,0.16),transparent_42%),linear-gradient(180deg,#0b1513_0%,#07110f_100%)]" /> */}
-			<div className="three-canvas-sticky sticky top-0 z-10 h-screen w-full" style={{ touchAction: 'pan-y' }}>
+			<div className="three-canvas-sticky sticky top-0 z-10 h-screen w-full" style={stickyViewportStyle}>
 				<Canvas
 					camera={{ position: [0, 0, 5], fov: DESKTOP_FOV_MAX }}
 					dpr={mobilePerformance ? [1, 3] : [1, 2]}
