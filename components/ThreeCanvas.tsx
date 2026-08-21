@@ -267,7 +267,7 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY, mobileP
 			sphere.current.position.x = THREE.MathUtils.damp(sphere.current.position.x, targetX, 2, delta)
 			sphere.current.position.y = THREE.MathUtils.damp(sphere.current.position.y, targetY, 2, delta)
 			sphere.current.position.z = THREE.MathUtils.damp(sphere.current.position.z, targetZ, 2, delta)
-			rotationAngle.current = THREE.MathUtils.damp(rotationAngle.current, scrollProgress * Math.PI * 4, 9, delta)
+			rotationAngle.current = THREE.MathUtils.damp(rotationAngle.current, scrollProgress * Math.PI * 2, 4, delta)
 			sphere.current.setRotationFromAxisAngle(rotationAxis, rotationAngle.current)
 		}
 
@@ -362,7 +362,10 @@ export function ThreeCanvas() {
 
 	const enableAudio = useCallback(() => {
 		try {
-			const rig = audioRig.current ?? createPointerAudioRig()
+			const currentRig = audioRig.current
+			const rig = currentRig && currentRig.context.state !== 'closed'
+				? currentRig
+				: createPointerAudioRig(mobilePerformance)
 			audioRig.current = rig
 			void rig.context.resume()
 			setPointerAudioMuted(rig, false)
@@ -371,7 +374,7 @@ export function ThreeCanvas() {
 		} catch {
 			// Web Audio can be unavailable or blocked by browser/device policy.
 		}
-	}, [])
+	}, [mobilePerformance])
 
 	const disableAudio = useCallback(() => {
 		if (audioRig.current) setPointerAudioMuted(audioRig.current, true)
@@ -400,7 +403,10 @@ export function ThreeCanvas() {
 		return () => {
 			window.removeEventListener('pointerdown', enableFromFirstGesture, true)
 			window.removeEventListener('keydown', enableFromFirstGesture, true)
-			if (audioRig.current) disposePointerAudioRig(audioRig.current)
+			if (audioRig.current) {
+				disposePointerAudioRig(audioRig.current)
+				audioRig.current = null
+			}
 		}
 	}, [enableAudio])
 
@@ -414,12 +420,12 @@ export function ThreeCanvas() {
 	}, [audioSettings])
 
 	return (
-		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 160}vh` }}>
+		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 120}vh` }}>
 			{/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(110,255,214,0.16),transparent_42%),linear-gradient(180deg,#0b1513_0%,#07110f_100%)]" /> */}
 			<div className="sticky top-0 z-10 h-screen w-full" style={{ touchAction: 'pan-y' }}>
 				<Canvas
 					camera={{ position: [0, 0, 5], fov: DESKTOP_FOV_MAX }}
-					dpr={mobilePerformance ? [1, 1.25] : [1, 2]}
+					dpr={mobilePerformance ? [1, 3] : [1, 2]}
 					gl={{ antialias: false, powerPreference: mobilePerformance ? 'default' : 'high-performance' }}
 					className="h-full w-full"
 					style={{ touchAction: 'pan-y' }}

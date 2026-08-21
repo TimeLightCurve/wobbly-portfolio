@@ -11,6 +11,7 @@ export type PointerAudioRig = {
 	master: GainNode
 	noiseBuffer: AudioBuffer
 	slowMotionBuffer: AudioBuffer
+	mobilePerformance: boolean
 	activeSources: Set<AudioScheduledSourceNode>
 	lastTriggerTime: number
 	lastSlowMotionTime: number
@@ -83,8 +84,7 @@ function createDistortionCurve(amount: number) {
 	return curve
 }
 
-function createGestureNoise(context: AudioContext) {
-	const duration = 10
+function createGestureNoise(context: AudioContext, duration: number) {
 	const buffer = context.createBuffer(1, context.sampleRate * duration, context.sampleRate)
 	const samples = buffer.getChannelData(0)
 	let brown = 0
@@ -98,8 +98,7 @@ function createGestureNoise(context: AudioContext) {
 	return buffer
 }
 
-function createSlowMotionRumble(context: AudioContext) {
-	const duration = 10
+function createSlowMotionRumble(context: AudioContext, duration: number) {
 	const buffer = context.createBuffer(1, context.sampleRate * duration, context.sampleRate)
 	const samples = buffer.getChannelData(0)
 	let brown = 0
@@ -115,7 +114,7 @@ function createSlowMotionRumble(context: AudioContext) {
 	return buffer
 }
 
-export function createPointerAudioRig(): PointerAudioRig {
+export function createPointerAudioRig(mobilePerformance = false): PointerAudioRig {
 	const context = new AudioContext()
 	const master = context.createGain()
 	const compressor = context.createDynamicsCompressor()
@@ -128,11 +127,14 @@ export function createPointerAudioRig(): PointerAudioRig {
 	compressor.release.value = 0.12
 	master.connect(compressor).connect(context.destination)
 
+	const noiseDuration = mobilePerformance ? 1 : 10
+
 	return {
 		context,
 		master,
-		noiseBuffer: createGestureNoise(context),
-		slowMotionBuffer: createSlowMotionRumble(context),
+		noiseBuffer: createGestureNoise(context, noiseDuration),
+		slowMotionBuffer: createSlowMotionRumble(context, noiseDuration),
+		mobilePerformance,
 		activeSources: new Set(),
 		lastTriggerTime: Number.NEGATIVE_INFINITY,
 		lastSlowMotionTime: Number.NEGATIVE_INFINITY,
@@ -259,7 +261,7 @@ function triggerGestureVoice(
 	acidFilter.frequency.exponentialRampToValueAtTime(filterPeak, startTime + Math.max(attack * 1.2, filterPeakTime))
 	acidFilter.frequency.exponentialRampToValueAtTime(Math.max(settings.baseCutoff * 0.55, 35), endTime)
 	distortion.curve = createDistortionCurve(settings.distortion * (0.65 + velocity * 0.55) * (1 + randomSigned() * 0.24 * randomness))
-	distortion.oversample = '4x'
+	distortion.oversample = rig.mobilePerformance ? 'none' : '4x'
 	acidEnvelope.gain.setValueAtTime(0.0001, startTime)
 	acidEnvelope.gain.exponentialRampToValueAtTime(Math.max(settings.acidLevel * intensity, 0.0001), startTime + attack)
 	acidEnvelope.gain.setTargetAtTime(
@@ -370,13 +372,13 @@ function triggerSlowMotionVoice(
 
 	const sub = rig.context.createOscillator()
 	const body = rig.context.createOscillator()
-	const impact = rig.context.createOscillator()
-	const fmModulator = rig.context.createOscillator()
-	const fmDepth = rig.context.createGain()
+	const impact = rig.mobilePerformance ? null : rig.context.createOscillator()
+	const fmModulator = rig.mobilePerformance ? null : rig.context.createOscillator()
+	const fmDepth = rig.mobilePerformance ? null : rig.context.createGain()
 	const subLevel = rig.context.createGain()
 	const bodyLevel = rig.context.createGain()
-	const impactEnvelope = rig.context.createGain()
-	const bodyDrive = rig.context.createWaveShaper()
+	const impactEnvelope = rig.mobilePerformance ? null : rig.context.createGain()
+	const bodyDrive = rig.mobilePerformance ? null : rig.context.createWaveShaper()
 	const rumbleFilter = rig.context.createBiquadFilter()
 	const rumbleEnvelope = rig.context.createGain()
 	const noise = rig.context.createBufferSource()
@@ -398,26 +400,32 @@ function triggerSlowMotionVoice(
 	body.frequency.exponentialRampToValueAtTime(Math.max(endPitch * 2.5, 42), slowPoint)
 	body.frequency.exponentialRampToValueAtTime(startPitch * 4.1, endTime)
 	bodyLevel.gain.value = 0.34 + velocity * 0.12
-	bodyDrive.curve = createDistortionCurve(72 + velocity * 95)
-	bodyDrive.oversample = '4x'
+	if (bodyDrive) {
+		bodyDrive.curve = createDistortionCurve(72 + velocity * 95)
+		bodyDrive.oversample = '4x'
+	}
 
-	fmModulator.type = 'sine'
-	fmModulator.frequency.setValueAtTime(24 + velocity * 20, startTime)
-	fmModulator.frequency.exponentialRampToValueAtTime(THREE.MathUtils.lerp(13, 3.2, motionStrength), slowPoint)
-	fmModulator.frequency.exponentialRampToValueAtTime(20 + velocity * 16, endTime)
-	fmDepth.gain.setValueAtTime(42 + velocity * 72, startTime)
-	fmDepth.gain.exponentialRampToValueAtTime(10 + motionStrength * 34, slowPoint)
-	fmDepth.gain.exponentialRampToValueAtTime(28 + velocity * 35, endTime)
+	if (fmModulator && fmDepth) {
+		fmModulator.type = 'sine'
+		fmModulator.frequency.setValueAtTime(24 + velocity * 20, startTime)
+		fmModulator.frequency.exponentialRampToValueAtTime(THREE.MathUtils.lerp(13, 3.2, motionStrength), slowPoint)
+		fmModulator.frequency.exponentialRampToValueAtTime(20 + velocity * 16, endTime)
+		fmDepth.gain.setValueAtTime(42 + velocity * 72, startTime)
+		fmDepth.gain.exponentialRampToValueAtTime(10 + motionStrength * 34, slowPoint)
+		fmDepth.gain.exponentialRampToValueAtTime(28 + velocity * 35, endTime)
+	}
 
-	impact.type = 'sine'
-	impact.frequency.setValueAtTime(105 + velocity * 115, startTime)
-	impact.frequency.exponentialRampToValueAtTime(28, startTime + Math.min(duration * 0.34, 1.25))
-	impactEnvelope.gain.setValueAtTime(0.0001, startTime)
-	impactEnvelope.gain.exponentialRampToValueAtTime(
-		Math.max(settings.slowMotionImpactLevel * (0.7 + velocity * 0.3), 0.0001),
-		startTime + 0.012,
-	)
-	impactEnvelope.gain.exponentialRampToValueAtTime(0.0001, startTime + Math.min(duration * 0.42, 1.5))
+	if (impact && impactEnvelope) {
+		impact.type = 'sine'
+		impact.frequency.setValueAtTime(105 + velocity * 115, startTime)
+		impact.frequency.exponentialRampToValueAtTime(28, startTime + Math.min(duration * 0.34, 1.25))
+		impactEnvelope.gain.setValueAtTime(0.0001, startTime)
+		impactEnvelope.gain.exponentialRampToValueAtTime(
+			Math.max(settings.slowMotionImpactLevel * (0.7 + velocity * 0.3), 0.0001),
+			startTime + 0.012,
+		)
+		impactEnvelope.gain.exponentialRampToValueAtTime(0.0001, startTime + Math.min(duration * 0.42, 1.5))
+	}
 
 	rumbleFilter.type = 'lowpass'
 	rumbleFilter.Q.value = settings.slowMotionResonance
@@ -474,21 +482,33 @@ function triggerSlowMotionVoice(
 	slowMotionOutput.gain.value = settings.slowMotionOutput
 
 	sub.connect(subLevel).connect(rumbleFilter)
-	body.connect(bodyLevel).connect(bodyDrive).connect(rumbleFilter)
-	fmModulator.connect(fmDepth).connect(body.frequency)
+	if (bodyDrive) {
+		body.connect(bodyLevel).connect(bodyDrive).connect(rumbleFilter)
+	} else {
+		body.connect(bodyLevel).connect(rumbleFilter)
+	}
+	if (fmModulator && fmDepth) fmModulator.connect(fmDepth).connect(body.frequency)
 	rumbleFilter.connect(rumbleEnvelope).connect(panner)
-	impact.connect(impactEnvelope).connect(panner)
+	if (impact && impactEnvelope) impact.connect(impactEnvelope).connect(panner)
 	noise.connect(noiseHighpass).connect(noiseFilter).connect(noiseEnvelope).connect(panner)
 	panner.connect(slowMotionOutput).connect(rig.master)
 
-	const sources: AudioScheduledSourceNode[] = [sub, body, impact, fmModulator, noise]
+	const sources: AudioScheduledSourceNode[] = [sub, body, noise]
+	if (impact) sources.push(impact)
+	if (fmModulator) sources.push(fmModulator)
 	for (const source of sources) {
 		rig.activeSources.add(source)
 		source.addEventListener('ended', () => rig.activeSources.delete(source), { once: true })
 	}
 
 	sub.addEventListener('ended', () => {
-		for (const node of [sub, body, impact, fmModulator, fmDepth, subLevel, bodyLevel, impactEnvelope, bodyDrive, rumbleFilter, rumbleEnvelope, noise, noiseHighpass, noiseFilter, noiseEnvelope, panner, slowMotionOutput]) {
+		const nodes: AudioNode[] = [sub, body, subLevel, bodyLevel, rumbleFilter, rumbleEnvelope, noise, noiseHighpass, noiseFilter, noiseEnvelope, panner, slowMotionOutput]
+		if (impact) nodes.push(impact)
+		if (fmModulator) nodes.push(fmModulator)
+		if (fmDepth) nodes.push(fmDepth)
+		if (impactEnvelope) nodes.push(impactEnvelope)
+		if (bodyDrive) nodes.push(bodyDrive)
+		for (const node of nodes) {
 			node.disconnect()
 		}
 	}, { once: true })
@@ -496,13 +516,13 @@ function triggerSlowMotionVoice(
 	const noiseOffset = Math.random() * Math.max(rig.slowMotionBuffer.duration - duration, 0)
 	sub.start(startTime)
 	body.start(startTime)
-	impact.start(startTime)
-	fmModulator.start(startTime)
+	impact?.start(startTime)
+	fmModulator?.start(startTime)
 	noise.start(startTime, noiseOffset)
-	impact.stop(startTime + Math.min(duration * 0.44, 1.55))
+	impact?.stop(startTime + Math.min(duration * 0.44, 1.55))
 	sub.stop(endTime + 0.02)
 	body.stop(endTime + 0.02)
-	fmModulator.stop(endTime + 0.02)
+	fmModulator?.stop(endTime + 0.02)
 	noise.stop(endTime + 0.02)
 }
 

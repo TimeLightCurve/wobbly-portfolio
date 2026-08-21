@@ -184,7 +184,7 @@ body {
 /* Face 3: each block occupies 80% of its wall, about 40% of the complete face. */
 .project-panel[data-layout="compact-equal"] .project-panel__image{
   width: 50%;
-  height: 990%;
+  height: 99%;
   justify-self: end;
   align-self: flex-start;
   margin-right: 2px;

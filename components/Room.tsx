@@ -136,6 +136,10 @@ const MOBILE_ROTATION_BREAKPOINT = 640
 const MOBILE_PROJECT_ROTATIONS = [-24, -22, -10, 0].map(THREE.MathUtils.degToRad)
 const TOUCH_SCROLL_INTENT_DISTANCE = 12
 const TOUCH_AXIS_DOMINANCE = 1.1
+const ROTATION_SNAP_EPSILON = THREE.MathUtils.degToRad(0.12)
+const ROTATION_MATRIX_EPSILON = 0.00001
+const MOBILE_SETTLE_DAMPING = 5
+const DESKTOP_SETTLE_DAMPING = 3
 
 function getMobileProjectRotation(rotation: number) {
   const projectIndex = ((-Math.round(rotation / QUARTER_TURN)) % PROJECTS_PER_COLUMN + PROJECTS_PER_COLUMN) % PROJECTS_PER_COLUMN
@@ -187,6 +191,7 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
   const isDragging = useRef(false)
   const gestureIntent = useRef<GestureIntent>('pending')
   const capturedPointerId = useRef<number | null>(null)
+  const previousAppliedRotation = useRef(Number.NaN)
 
   const capturePointer = (event: ThreeEvent<PointerEvent>) => {
     if (capturedPointerId.current === event.pointerId) return
@@ -299,7 +304,23 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
       ? getMobileProjectRotation(isDragging.current ? dragOriginRotation.current : targetRotation.current)
       : 0
     const rotation = baseRotation + restingRotation
-    columns.current.rotation.y = THREE.MathUtils.damp(columns.current.rotation.y, rotation, isDragging.current ? 4 : 2, delta)
+    const rotationError = Math.abs(rotation - columns.current.rotation.y)
+    if (!isDragging.current && rotationError <= ROTATION_SNAP_EPSILON) {
+      columns.current.rotation.y = rotation
+    } else {
+      const settleDamping = viewportWidth <= MOBILE_ROTATION_BREAKPOINT
+        ? MOBILE_SETTLE_DAMPING
+        : DESKTOP_SETTLE_DAMPING
+      columns.current.rotation.y = THREE.MathUtils.damp(
+        columns.current.rotation.y,
+        rotation,
+        isDragging.current ? 4 : settleDamping,
+        delta,
+      )
+    }
+
+    if (Math.abs(columns.current.rotation.y - previousAppliedRotation.current) <= ROTATION_MATRIX_EPSILON) return
+    previousAppliedRotation.current = columns.current.rotation.y
     columns.current.updateWorldMatrix(true, false)
 
     if (!columnCenter.current) return
@@ -376,7 +397,7 @@ export function Room({ onAnchorChange, onColumnMotion, ...props }: JSX.Intrinsic
           </mesh>
           <InkEdges edges={roomEdges} scale={[1.2, 1.3, 1]} />
         </group>
-        <group position={[0, -0.8725, 0]}>
+        <group position={[0, -1.8725, 0]}>
           <ColumnSystem geometry={nodes.columns.geometry} edges={columnsEdges} onAnchorChange={onAnchorChange} onColumnMotion={onColumnMotion} />
         </group>
       </group>

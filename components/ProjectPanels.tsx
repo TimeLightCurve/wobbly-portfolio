@@ -2,7 +2,6 @@
 
 import { Html } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
-import { AnimatePresence, motion } from 'motion/react'
 import Image from 'next/image'
 import { useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
@@ -40,6 +39,9 @@ const FACE_HIDE_THRESHOLD = 0.80
 const FACE_SHOW_DELAY = 0.4
 const FACE_SHOW_DURATION = 0.3
 const FACE_HIDE_DURATION = 0.1
+const MOBILE_FACE_SHOW_DELAY = 0.04
+const MOBILE_FACE_SHOW_DURATION = 0.12
+const MOBILE_FACE_HIDE_DURATION = 0.06
 const FACE_SURFACE_GAP = 0.006
 
 const BASE_CSS_PIXELS_PER_WORLD_UNIT = 400
@@ -48,6 +50,7 @@ const MOBILE_RASTER_BREAKPOINT = 640
 function ProjectFace({ project, layout, position, rotation, width, height, channelWidth }: ProjectFaceProps) {
 	const viewportWidth = useThree((state) => state.size.width)
 	const rasterDensity = viewportWidth <= MOBILE_RASTER_BREAKPOINT ? 1 : 2
+	const mobileRaster = rasterDensity === 1
 	const htmlDistanceFactor = 1 / rasterDensity
 	const cssPixelsPerWorldUnit = BASE_CSS_PIXELS_PER_WORLD_UNIT / htmlDistanceFactor
 	const face = useRef<THREE.Group>(null)
@@ -105,20 +108,20 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 						transformStyle: 'preserve-3d',
 					}}
 				>
-					<AnimatePresence initial={false}>
-						<motion.article
-							key={`info-${project.title}`}
-							initial={{ opacity: 0 }}
-							animate={isVisible ? { opacity: 1 } : { opacity: 0 }}
-							transition={{
-								opacity: isVisible
-									? { delay: FACE_SHOW_DELAY, duration: FACE_SHOW_DURATION, ease: 'easeOut' }
-									: { duration: FACE_HIDE_DURATION, ease: 'linear' },
-							}}
+					<article
 							className="project-panel"
 							data-layout={layout}
 							style={{
 								columnGap: `${panelSize.gap}px`,
+								opacity: isVisible ? 1 : 0,
+								transitionProperty: 'opacity',
+								transitionDelay: isVisible ? `${mobileRaster ? MOBILE_FACE_SHOW_DELAY : FACE_SHOW_DELAY}s` : '0s',
+								transitionDuration: `${mobileRaster
+									? (isVisible ? MOBILE_FACE_SHOW_DURATION : MOBILE_FACE_HIDE_DURATION)
+									: (isVisible ? FACE_SHOW_DURATION : FACE_HIDE_DURATION)}s`,
+								transitionTimingFunction: isVisible ? 'ease-out' : 'linear',
+								backfaceVisibility: 'hidden',
+								WebkitBackfaceVisibility: 'hidden',
 							}}
 						>
 							<div className="project-panel__image self-s">
@@ -152,8 +155,7 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 									))}
 								</div>
 							</div>
-						</motion.article>
-					</AnimatePresence>
+					</article>
 				</div>
 			</Html>
 		</group>
