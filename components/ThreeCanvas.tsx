@@ -206,13 +206,9 @@ function WobbleSphere({ scrollYProgress, anchorStore, columnCount, endY }: { scr
 		pointerProximity.current = THREE.MathUtils.damp(pointerProximity.current, targetPointerProximity, 8, delta)
 
 		if (sphere.current) {
-			if (scrollProgress <= 0.001) {
-				sphere.current.position.set(SPHERE_PATH.startX, SPHERE_PATH.startY, SPHERE_PATH.z)
-			} else {
-				sphere.current.position.x = THREE.MathUtils.damp(sphere.current.position.x, targetX, 2, delta)
-				sphere.current.position.y = THREE.MathUtils.damp(sphere.current.position.y, targetY, 2, delta)
-				sphere.current.position.z = THREE.MathUtils.damp(sphere.current.position.z, targetZ, 2, delta)
-			}
+			sphere.current.position.x = THREE.MathUtils.damp(sphere.current.position.x, targetX, 2, delta)
+			sphere.current.position.y = THREE.MathUtils.damp(sphere.current.position.y, targetY, 2, delta)
+			sphere.current.position.z = THREE.MathUtils.damp(sphere.current.position.z, targetZ, 2, delta)
 			rotationAngle.current = THREE.MathUtils.damp(rotationAngle.current, scrollProgress * Math.PI * 4, 5, delta)
 			sphere.current.setRotationFromAxisAngle(rotationAxis, rotationAngle.current)
 		}
@@ -242,7 +238,7 @@ export function ThreeCanvas() {
 	const audioControlStore = useCreateStore()
 	const audioSettings = useControls({
 		Output: folder({
-			masterVolume: { value: 0.13, min: 0, max: 0.5, step: 0.005, label: 'Master volume' },
+			masterVolume: { value: 0.18, min: 0, max: 0.5, step: 0.005, label: 'Master volume' },
 		}, { collapsed: true }),
 		Trigger: folder({
 			centerThreshold: { value: 0.6, min: 0.4, max: 0.98, step: 0.01, label: 'Center threshold' },
@@ -270,8 +266,8 @@ export function ThreeCanvas() {
 			distortion: { value: 132, min: 0, max: 150, step: 1, label: 'Distortion' },
 		}, { collapsed: true }),
 		Mix: folder({
-			acidLevel: { value: 0.11, min: 0, max: 0.6, step: 0.005, label: 'Acid level' },
-			noiseLevel: { value: 0.11, min: 0, max: 0.6, step: 0.005, label: 'Noise level' },
+			acidLevel: { value: 0.16, min: 0, max: 0.6, step: 0.005, label: 'Acid level' },
+			noiseLevel: { value: 0.16, min: 0, max: 0.6, step: 0.005, label: 'Noise level' },
 			proximityCurve: { value: 3, min: 0.4, max: 4, step: 0.05, label: 'Center curve' },
 			stereoWidth: { value: 0.65, min: 0, max: 1, step: 0.01, label: 'Stereo width' },
 		}, { collapsed: true }),
@@ -362,7 +358,7 @@ export function ThreeCanvas() {
 		<section id="neuron-canvas" className="relative w-full bg-transparent" style={{ height: `${columnCount * 260}vh` }}>
 			{/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(110,255,214,0.16),transparent_42%),linear-gradient(180deg,#0b1513_0%,#07110f_100%)]" /> */}
 			<div className="sticky top-0 z-10 h-screen w-full">
-				<Canvas camera={{ position: [0, 0, 5], fov: 34 }} dpr={[1, 2]} gl={{ antialias: false, powerPreference: 'high-performance' }} className="h-full w-full">
+				<Canvas camera={{ position: [0, 0, 5], fov: 40 }} dpr={[1, 2]} gl={{ antialias: false, powerPreference: 'high-performance' }} className="h-full w-full">
 					<PointerAudioModulator rigRef={audioRig} settings={audioSettings} enabled={audioEnabled} scrollProgress={scrollYProgress} />
 					{/* <color attach="background" args={["#07110f"]} /> */}
 					<ambientLight intensity={0.1} />

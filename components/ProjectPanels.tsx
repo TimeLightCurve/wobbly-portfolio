@@ -10,12 +10,23 @@ import type { Project } from './projects'
 
 type ProjectFaceProps = {
 	project: Project
+	layout: ProjectPanelLayout
 	position: [number, number, number]
 	rotation: [number, number, number]
 	width: number
 	height: number
 	channelWidth: number
 }
+
+type ProjectPanelLayout = 'balanced' | 'image-dominant' | 'compact-equal' | 'portrait'
+
+// The room starts at -90deg, so the visible sequence is face 1, 2, 3, then 0.
+const PROJECT_LAYOUTS: ProjectPanelLayout[] = [
+	'compact-equal',
+	'balanced',
+	'image-dominant',
+	'portrait',
+]
 
 const FACE_NORMALS = [
 	new THREE.Vector3(0, 0, 1),
@@ -26,15 +37,17 @@ const FACE_NORMALS = [
 
 const FACE_SHOW_THRESHOLD = 0.68
 const FACE_HIDE_THRESHOLD = 0.80
-const FACE_SHOW_DELAY = 0.0
+const FACE_SHOW_DELAY = 0.4
 const FACE_SHOW_DURATION = 0.3
 const FACE_HIDE_DURATION = 0.1
 const FACE_SURFACE_GAP = 0.006
 
 const HTML_DISTANCE_FACTOR = 1
+const HTML_RASTER_SCALE = 0.5
+const HTML_RASTER_SUPERSAMPLE = 2
 const CSS_PIXELS_PER_WORLD_UNIT = 400 / HTML_DISTANCE_FACTOR
 
-function ProjectFace({ project, position, rotation, width, height, channelWidth }: ProjectFaceProps) {
+function ProjectFace({ project, layout, position, rotation, width, height, channelWidth }: ProjectFaceProps) {
 	const face = useRef<THREE.Group>(null)
 	const faceVisibility = useRef(false)
 	const [isVisible, setIsVisible] = useState(false)
@@ -47,6 +60,11 @@ function ProjectFace({ project, position, rotation, width, height, channelWidth 
 		height: height * CSS_PIXELS_PER_WORLD_UNIT,
 		gap: channelWidth * CSS_PIXELS_PER_WORLD_UNIT,
 	}), [channelWidth, height, width])
+	const imageSizes = layout === 'portrait'
+		? '20vw'
+		: layout === 'compact-equal'
+			? '60vw'
+			: '100vw'
 
 	useFrame(({ camera }) => {
 		if (!face.current) return
@@ -71,6 +89,7 @@ function ProjectFace({ project, position, rotation, width, height, channelWidth 
 			<Html
 				transform
 				distanceFactor={HTML_DISTANCE_FACTOR}
+				scale={HTML_RASTER_SCALE}
 				pointerEvents="none"
 				wrapperClass="project-panel-html"
 				style={{
@@ -84,6 +103,14 @@ function ProjectFace({ project, position, rotation, width, height, channelWidth 
 						transformStyle: 'preserve-3d',
 					}}
 				>
+					<div
+						style={{
+							width: '100%',
+							height: '100%',
+							transform: `scale(${HTML_RASTER_SUPERSAMPLE})`,
+							transformOrigin: 'center center',
+						}}
+					>
 					<AnimatePresence initial={false}>
 						<motion.article
 							key={`info-${project.title}`}
@@ -94,38 +121,38 @@ function ProjectFace({ project, position, rotation, width, height, channelWidth 
 									? { delay: FACE_SHOW_DELAY, duration: FACE_SHOW_DURATION, ease: 'easeOut' }
 									: { duration: FACE_HIDE_DURATION, ease: 'linear' },
 							}}
-							className="grid h-full w-full overflow-hidden bg-transparent text-white"
+							className="project-panel"
+							data-layout={layout}
 							style={{
-								gridTemplateColumns: `minmax(0, 1fr) minmax(0, 1fr)`,
 								columnGap: `${panelSize.gap}px`,
 							}}
 						>
-							<div className="relative min-h-0 overflow-hidden bg-black">
+							<div className="project-panel__image self-s">
 								<Image
-									src="/image1.jpg"
+									src="/image3.jpg"
 									alt={`${project.title} preview`}
 									fill
-									sizes="50vw"
+									sizes={imageSizes}
 									className="object-cover"
 								/>
 							</div>
-							<div className="min-h-0 overflow-hidden p-16">
-								<p className="mb-8 text-2xl uppercase tracking-[0.28em] text-white/50">Selected project</p>
-								<h2 className="mb-8 text-7xl font-semibold">{project.title}</h2>
-								<p className="mb-10 text-3xl leading-10 text-white/70">{project.blurb}</p>
-								<div className="mb-10 flex gap-12 border-y border-white/15 py-8">
-									<div>
-										<strong className="block text-4xl">{project.metrics.volume}</strong>
-										<span className="text-xl uppercase tracking-wider text-white/45">Volume</span>
+							<div className="project-panel__info">
+								<p className="project-panel__eyebrow">Selected project</p>
+								<h2 className="project-panel__title">{project.title}</h2>
+								<p className="project-panel__blurb">{project.blurb}</p>
+								<div className="project-panel__metrics">
+									<div className="project-panel__metric">
+										<strong>{project.metrics.volume}</strong>
+										<span>Volume</span>
 									</div>
-									<div>
-										<strong className="block text-4xl">{project.metrics.transactions}</strong>
-										<span className="text-xl uppercase tracking-wider text-white/45">Transactions</span>
+									<div className="project-panel__metric">
+										<strong>{project.metrics.transactions}</strong>
+										<span>Transactions</span>
 									</div>
 								</div>
-								<div className="flex flex-wrap gap-6">
+								<div className="project-panel__tags">
 									{project.tags.map((tag) => (
-										<span key={tag} className="border border-white/20 px-8 py-5 text-xl text-white/70">
+										<span key={tag}>
 											{tag}
 										</span>
 									))}
@@ -133,6 +160,7 @@ function ProjectFace({ project, position, rotation, width, height, channelWidth 
 							</div>
 						</motion.article>
 					</AnimatePresence>
+					</div>
 				</div>
 			</Html>
 		</group>
@@ -192,7 +220,14 @@ export function ProjectPanels({ geometry, projects, scaleY }: { geometry: THREE.
 				const face = faces[index]
 				if (!face) return null
 
-				return <ProjectFace key={project.title} project={project} {...face} />
+				return (
+					<ProjectFace
+						key={project.title}
+						project={project}
+						layout={PROJECT_LAYOUTS[index] ?? 'balanced'}
+						{...face}
+					/>
+				)
 			})}
 		</group>
 	)
