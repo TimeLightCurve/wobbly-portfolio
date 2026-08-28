@@ -5,6 +5,7 @@ import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import { type MotionValue } from 'motion/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { type ScenePerformanceProfile } from './CanvasViewport'
 import { type SceneRoute } from './SceneRoute'
 
 export function PipelineAtmosphere({
@@ -18,6 +19,7 @@ export function PipelineAtmosphere({
 	const regularBackground = useMemo(() => new THREE.Color('#27282b'), [])
 	const pipelineBackground = useMemo(() => new THREE.Color('#010102'), [])
 	const currentBackground = useMemo(() => new THREE.Color(), [])
+	const previousDarkness = useRef(Number.NaN)
 
 	useEffect(() => {
 		const scene = getThreeState().scene
@@ -36,6 +38,8 @@ export function PipelineAtmosphere({
 			route.lastColumnProgress,
 			route.pipelineRevealProgress,
 		)
+		if (Math.abs(darkness - previousDarkness.current) < 0.0001) return
+		previousDarkness.current = darkness
 		currentBackground.lerpColors(regularBackground, pipelineBackground, darkness)
 		scene.background = currentBackground
 		scene.environmentIntensity = THREE.MathUtils.lerp(0.5, 0.018, darkness)
@@ -47,23 +51,26 @@ export function PipelineAtmosphere({
 export function PipelineBloom({
 	scrollYProgress,
 	route,
-	mobilePerformance,
+	performanceProfile,
 }: {
 	scrollYProgress: MotionValue<number>
 	route: SceneRoute
-	mobilePerformance: boolean
+	performanceProfile: ScenePerformanceProfile
 }) {
 	const [active, setActive] = useState(false)
 	const activeRef = useRef(false)
 
-	useEffect(() => scrollYProgress.on('change', (progress) => {
-		const shouldBeActive = progress >= route.lastColumnProgress - 0.015
-		if (shouldBeActive === activeRef.current) return
-		activeRef.current = shouldBeActive
-		setActive(shouldBeActive)
-	}), [route.lastColumnProgress, scrollYProgress])
+	useEffect(() => {
+		if (!performanceProfile.bloomEnabled) return
+		return scrollYProgress.on('change', (progress) => {
+			const shouldBeActive = progress >= route.lastColumnProgress - 0.015
+			if (shouldBeActive === activeRef.current) return
+			activeRef.current = shouldBeActive
+			setActive(shouldBeActive)
+		})
+	}, [performanceProfile.bloomEnabled, route.lastColumnProgress, scrollYProgress])
 
-	if (!active) return null
+	if (!performanceProfile.bloomEnabled || !active) return null
 
 	return (
 		<EffectComposer multisampling={0} enableNormalPass={false} depthBuffer={false}>
@@ -72,9 +79,9 @@ export function PipelineBloom({
 				luminanceThreshold={0.2}
 				luminanceSmoothing={0.18}
 				mipmapBlur
-				levels={mobilePerformance ? 3 : 5}
+				levels={performanceProfile.bloomLevels}
 				radius={0.72}
-				resolutionScale={mobilePerformance ? 0.22 : 0.38}
+				resolutionScale={performanceProfile.bloomResolutionScale}
 			/>
 		</EffectComposer>
 	)

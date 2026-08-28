@@ -70,11 +70,12 @@ type ColumnSectionProps = {
   centerY: number
   columnIndex: number
   sectionProjects: Project[]
-  onAnchorChange: (columnIndex: number, x: number, z: number) => void
+	onAnchorChange: (columnIndex: number, x: number, z: number) => void
 	onColumnMotion: (velocity: number, direction: number) => void
+	reducedPerformance: boolean
 }
 
-function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects, onAnchorChange, onColumnMotion }: ColumnSectionProps) {
+function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects, onAnchorChange, onColumnMotion, reducedPerformance }: ColumnSectionProps) {
   const viewportWidth = useThree((state) => state.size.width)
   const initialRestingRotation = viewportWidth <= MOBILE_ROTATION_BREAKPOINT ? getMobileProjectRotation(0) : 0
   const columns = useRef<THREE.Group>(null)
@@ -253,17 +254,22 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
       <group ref={columns} position={[COLUMN_PIVOT_X, centerY, COLUMN_PIVOT_Z]} rotation={[0, initialRestingRotation, 0]}>
         <group ref={columnCenter} position={[COLUMN_MESH_OFFSET_X, COLUMN_MESH_OFFSET_Y, COLUMN_MESH_OFFSET_Z]}>
           <mesh geometry={geometry} castShadow receiveShadow scale={[1, COLUMN_MESH_SCALE_Y, 1]}>
-            <meshStandardMaterial color="#202020" />
+            <meshStandardMaterial color="#27282b"  />
           </mesh>
           <InkEdges edges={edges} scale={[1, COLUMN_MESH_SCALE_Y, 1]} />
-          <ProjectPanels geometry={geometry} projects={sectionProjects} scaleY={COLUMN_MESH_SCALE_Y} />
+          <ProjectPanels
+            geometry={geometry}
+            projects={sectionProjects}
+            scaleY={COLUMN_MESH_SCALE_Y}
+            reducedPerformance={reducedPerformance}
+          />
         </group>
       </group>
     </>
   )
 }
 
-function ColumnSystem({ geometry, edges, onAnchorChange, onColumnMotion }: Pick<ColumnSectionProps, 'geometry' | 'edges' | 'onAnchorChange' | 'onColumnMotion'>) {
+function ColumnSystem({ geometry, edges, onAnchorChange, onColumnMotion, reducedPerformance }: Pick<ColumnSectionProps, 'geometry' | 'edges' | 'onAnchorChange' | 'onColumnMotion' | 'reducedPerformance'>) {
   const projectSections = useMemo(() => Array.from(
     { length: getProjectColumnCount(projects.length) },
     (_, columnIndex) => projects.slice(
@@ -281,14 +287,16 @@ function ColumnSystem({ geometry, edges, onAnchorChange, onColumnMotion }: Pick<
       columnIndex={columnIndex}
       sectionProjects={sectionProjects}
       onAnchorChange={onAnchorChange}
-		onColumnMotion={onColumnMotion}
+      onColumnMotion={onColumnMotion}
+      reducedPerformance={reducedPerformance}
     />
   ))
 }
 
-export function Room({ onAnchorChange, onColumnMotion, ...props }: JSX.IntrinsicElements['group'] & {
+export function Room({ onAnchorChange, onColumnMotion, reducedPerformance, ...props }: JSX.IntrinsicElements['group'] & {
 	onAnchorChange: (columnIndex: number, x: number, z: number) => void
 	onColumnMotion: (velocity: number, direction: number) => void
+	reducedPerformance: boolean
 }) {
   const { nodes, materials } = useGLTF('/room2.glb') as unknown as GLTFResult
 
@@ -300,12 +308,18 @@ export function Room({ onAnchorChange, onColumnMotion, ...props }: JSX.Intrinsic
       <group>
         <group >
           <mesh geometry={nodes.room.geometry} material={materials.Cardboard} castShadow receiveShadow scale={[1.2, 1.3, 1.2]}>
-            <meshStandardMaterial color="#202020" />
+            <meshStandardMaterial color="#202020"  />
           </mesh>
           <InkEdges edges={roomEdges} scale={[1.2, 1.3, 1.2]} />
         </group>
 		<group position={[0, COLUMN_SYSTEM_OFFSET_Y, 0]}>
-          <ColumnSystem geometry={nodes.columns.geometry} edges={columnsEdges} onAnchorChange={onAnchorChange} onColumnMotion={onColumnMotion} />
+          <ColumnSystem
+            geometry={nodes.columns.geometry}
+            edges={columnsEdges}
+            onAnchorChange={onAnchorChange}
+            onColumnMotion={onColumnMotion}
+            reducedPerformance={reducedPerformance}
+          />
         </group>
       </group>
     </group>

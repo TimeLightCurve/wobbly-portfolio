@@ -3,7 +3,7 @@
 import { Html } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import Image from 'next/image'
-import { useMemo, useRef, useState } from 'react'
+import { memo, useMemo, useRef, useState, type RefCallback } from 'react'
 import * as THREE from 'three'
 import type { Project } from './projects'
 
@@ -15,6 +15,10 @@ type ProjectFaceProps = {
 	width: number
 	height: number
 	channelWidth: number
+	isVisible: boolean
+	reducedPerformance: boolean
+	rasterDensity: 1 | 2
+	faceRef: RefCallback<THREE.Group>
 }
 
 type ProjectPanelLayout = 'balanced' | 'image-dominant' | 'compact-equal' | 'portrait'
@@ -47,19 +51,22 @@ const FACE_SURFACE_GAP = 0.006
 const BASE_CSS_PIXELS_PER_WORLD_UNIT = 400
 const MOBILE_RASTER_BREAKPOINT = 640
 
-function ProjectFace({ project, layout, position, rotation, width, height, channelWidth }: ProjectFaceProps) {
-	const viewportWidth = useThree((state) => state.size.width)
-	const rasterDensity = viewportWidth <= MOBILE_RASTER_BREAKPOINT ? 1 : 2
+const ProjectFace = memo(function ProjectFace({
+	project,
+	layout,
+	position,
+	rotation,
+	width,
+	height,
+	channelWidth,
+	isVisible,
+	reducedPerformance,
+	rasterDensity,
+	faceRef,
+}: ProjectFaceProps) {
 	const mobileRaster = rasterDensity === 1
 	const htmlDistanceFactor = 1 / rasterDensity
 	const cssPixelsPerWorldUnit = BASE_CSS_PIXELS_PER_WORLD_UNIT / htmlDistanceFactor
-	const face = useRef<THREE.Group>(null)
-	const faceVisibility = useRef(false)
-	const [isVisible, setIsVisible] = useState(false)
-	const worldQuaternion = useMemo(() => new THREE.Quaternion(), [])
-	const facePosition = useMemo(() => new THREE.Vector3(), [])
-	const faceNormal = useMemo(() => new THREE.Vector3(), [])
-	const cameraDirection = useMemo(() => new THREE.Vector3(), [])
 	const panelSize = useMemo(() => ({
 		width: width * cssPixelsPerWorldUnit,
 		height: height * cssPixelsPerWorldUnit,
@@ -72,27 +79,9 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 			? `${30 * imageDensityMultiplier}vw`
 			: `${50 * imageDensityMultiplier}vw`
 
-	useFrame(({ camera }) => {
-		if (!face.current) return
-
-		face.current.getWorldPosition(facePosition)
-		face.current.getWorldQuaternion(worldQuaternion)
-		faceNormal.set(0, 0, 1).applyQuaternion(worldQuaternion).normalize()
-		cameraDirection.copy(camera.position).sub(facePosition).normalize()
-		const facingScore = faceNormal.dot(cameraDirection)
-		const nextIsVisible = faceVisibility.current
-			? facingScore > FACE_HIDE_THRESHOLD
-			: facingScore > FACE_SHOW_THRESHOLD
-
-		if (faceVisibility.current !== nextIsVisible) {
-			faceVisibility.current = nextIsVisible
-			setIsVisible(nextIsVisible)
-		}
-	})
-
 	return (
-		<group ref={face} position={position} rotation={rotation}>
-			<Html
+		<group ref={faceRef} position={position} rotation={rotation}>
+			{(!reducedPerformance || isVisible) && <Html
 				transform
 				distanceFactor={htmlDistanceFactor}
 				pointerEvents="none"
@@ -133,10 +122,10 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 									className="object-cover"
 								/>
 							</div>
-						<div className=' w-[98%] h-[98%] self-center place-self-center bg-[#090708]'>
+						<div className=' w-[98%] h-[98%] self-center place-self-center bg-[#27282b]  '>
 
 						
-						<div className="project-panel__info bg-[#090708]">
+							<div className="project-panel__info self-center place-self-center">
 								<p className="project-panel__eyebrow">Selected project</p>
 								<h2 className="project-panel__title">{project.title}</h2>
 								<p className="project-panel__blurb">{project.blurb}</p>
@@ -161,12 +150,37 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 						</div>
 					</article>
 				</div>
-			</Html>
+			</Html>}
 		</group>
 	)
-}
+})
 
-export function ProjectPanels({ geometry, projects, scaleY }: { geometry: THREE.BufferGeometry, projects: Project[], scaleY: number }) {
+export function ProjectPanels({
+	geometry,
+	projects,
+	scaleY,
+	reducedPerformance,
+}: {
+	geometry: THREE.BufferGeometry
+	projects: Project[]
+	scaleY: number
+	reducedPerformance: boolean
+}) {
+	const viewportWidth = useThree((state) => state.size.width)
+	const rasterDensity: 1 | 2 = reducedPerformance || viewportWidth <= MOBILE_RASTER_BREAKPOINT ? 1 : 2
+	const faceRefs = useRef<Array<THREE.Group | null>>([])
+	const faceVisibility = useRef(FACE_NORMALS.map(() => false))
+	const visibilityAccumulator = useRef(0)
+	const [visibleFaces, setVisibleFaces] = useState(() => FACE_NORMALS.map(() => false))
+	const worldQuaternion = useMemo(() => new THREE.Quaternion(), [])
+	const facePosition = useMemo(() => new THREE.Vector3(), [])
+	const faceNormal = useMemo(() => new THREE.Vector3(), [])
+	const cameraDirection = useMemo(() => new THREE.Vector3(), [])
+	const faceRefCallbacks = useMemo(() => FACE_NORMALS.map((_, index): RefCallback<THREE.Group> => (
+		face => {
+			faceRefs.current[index] = face
+		}
+	)), [])
 	const faces = useMemo(() => {
 		geometry.computeBoundingBox()
 		const bounds = geometry.boundingBox
@@ -213,6 +227,32 @@ export function ProjectPanels({ geometry, projects, scaleY }: { geometry: THREE.
 		})
 	}, [geometry, scaleY])
 
+	useFrame(({ camera }, delta) => {
+		visibilityAccumulator.current += delta
+		const updateInterval = reducedPerformance ? 1 / 20 : 1 / 45
+		if (visibilityAccumulator.current < updateInterval) return
+		visibilityAccumulator.current %= updateInterval
+
+		let visibilityChanged = false
+		for (let index = 0; index < faceRefs.current.length; index += 1) {
+			const face = faceRefs.current[index]
+			if (!face) continue
+			face.getWorldPosition(facePosition)
+			face.getWorldQuaternion(worldQuaternion)
+			faceNormal.set(0, 0, 1).applyQuaternion(worldQuaternion)
+			cameraDirection.copy(camera.position).sub(facePosition).normalize()
+			const facingScore = faceNormal.dot(cameraDirection)
+			const nextIsVisible = faceVisibility.current[index]
+				? facingScore > FACE_HIDE_THRESHOLD
+				: facingScore > FACE_SHOW_THRESHOLD
+			if (faceVisibility.current[index] === nextIsVisible) continue
+			faceVisibility.current[index] = nextIsVisible
+			visibilityChanged = true
+		}
+
+		if (visibilityChanged) setVisibleFaces([...faceVisibility.current])
+	})
+
 	return (
 		<group>
 			{projects.slice(0, 4).map((project, index) => {
@@ -224,6 +264,10 @@ export function ProjectPanels({ geometry, projects, scaleY }: { geometry: THREE.
 						key={project.title}
 						project={project}
 						layout={PROJECT_LAYOUTS[index] ?? 'balanced'}
+						isVisible={visibleFaces[index]}
+						reducedPerformance={reducedPerformance}
+						rasterDensity={rasterDensity}
+						faceRef={faceRefCallbacks[index]}
 						{...face}
 					/>
 				)

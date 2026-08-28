@@ -54,6 +54,19 @@ function FlightStatement({
 
 	useFrame(({ clock }, delta) => {
 		if (!root.current || !textMaterial.current) return
+		const scrollProgress = scrollYProgress.get()
+		if (
+			scrollProgress < route.flightStartProgress - 0.02
+			|| Math.abs(scrollProgress - progress) > 0.12
+		) {
+			if (root.current.visible) {
+				root.current.visible = false
+				root.current.scale.setScalar(0.2)
+				textMaterial.current.opacity = 0
+				textMaterial.current.emissiveIntensity = 0
+			}
+			return
+		}
 
 		const spherePosition = spherePositionRef.current
 		pathCarrierRef.current?.getWorldPosition(spherePosition)
@@ -64,7 +77,7 @@ function FlightStatement({
 			.dot(stopTransform.tangent)
 		const passVisibility = THREE.MathUtils.smoothstep(signedStopDistance, -2, -0.35)
 		const flightVisibility = THREE.MathUtils.smoothstep(
-			scrollYProgress.get(),
+			scrollProgress,
 			route.flightStartProgress - 0.012,
 			route.flightStartProgress + 0.012,
 		)

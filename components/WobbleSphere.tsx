@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber'
 import { type MotionValue } from 'motion/react'
 import { useMemo, useRef, type RefObject } from 'react'
 import * as THREE from 'three'
+import { type ScenePerformanceProfile } from './CanvasViewport'
 import { COLUMN_SPACING, COLUMN_SYSTEM_OFFSET_Y, FIRST_COLUMN_CENTER_Y } from './Room'
 import {
 	FLIGHT_SPHERE_SCALE,
@@ -126,6 +127,8 @@ const WOBBLE_FRAGMENT_SHADER = `
 const TRAIL_ATTENUATION = (width: number) => width * width
 const PIPELINE_TRANSITION_START = 0.48
 const PIPELINE_TRANSITION_END = 0.94
+const FIRST_COLUMN_Y = COLUMN_SYSTEM_OFFSET_Y + FIRST_COLUMN_CENTER_Y
+const EMPTY_ANCHOR: [number, number] = [0, 0]
 
 function easeInOutCubic(progress: number) {
 	const value = THREE.MathUtils.clamp(progress, 0, 1)
@@ -160,13 +163,13 @@ export function WobbleSphere({
 	scrollYProgress,
 	anchorStore,
 	route,
-	mobilePerformance,
+	performanceProfile,
 	pathCarrierRef,
 }: {
 	scrollYProgress: MotionValue<number>
 	anchorStore: ColumnAnchorStore
 	route: SceneRoute
-	mobilePerformance: boolean
+	performanceProfile: ScenePerformanceProfile
 	pathCarrierRef: RefObject<THREE.Group>
 }) {
 	const sphere = useRef<THREE.Mesh>(null)
@@ -176,7 +179,11 @@ export function WobbleSphere({
 	const rotationAngle = useRef(0)
 	const pointerProximity = useRef(1)
 	const carrierPosition = useMemo(() => new THREE.Vector3(), [])
-	const sphereSegments = mobilePerformance ? 96 : 256
+	const lastColumnY = useMemo(
+		() => FIRST_COLUMN_Y - (route.columnProgress.length - 1) * COLUMN_SPACING,
+		[route.columnProgress.length],
+	)
+	const motionCurves = useMemo(() => [route.curve], [route.curve])
 	const rotationAxis = useMemo(() => new THREE.Vector3(
 		THREE.MathUtils.randFloatSpread(2),
 		THREE.MathUtils.randFloatSpread(2),
@@ -202,10 +209,8 @@ export function WobbleSphere({
 			route.curve.getPointAt(scrollProgress, carrierPosition)
 		}
 
-		const firstColumnY = COLUMN_SYSTEM_OFFSET_Y + FIRST_COLUMN_CENTER_Y
-		const lastColumnY = firstColumnY - (route.columnProgress.length - 1) * COLUMN_SPACING
 		const destinationColumn = THREE.MathUtils.clamp(
-			Math.ceil((firstColumnY - carrierPosition.y) / COLUMN_SPACING),
+			Math.ceil((FIRST_COLUMN_Y - carrierPosition.y) / COLUMN_SPACING),
 			0,
 			route.columnProgress.length - 1,
 		)
@@ -213,11 +218,11 @@ export function WobbleSphere({
 		const destinationSectionProgress = destinationColumn === 0
 			? 0
 			: THREE.MathUtils.clamp(
-				(firstColumnY - sourceColumn * COLUMN_SPACING - carrierPosition.y) / COLUMN_SPACING,
+				(FIRST_COLUMN_Y - sourceColumn * COLUMN_SPACING - carrierPosition.y) / COLUMN_SPACING,
 				0,
 				1,
 			)
-		const sourceAnchor = anchorStore.positions[sourceColumn] ?? [0, 0]
+		const sourceAnchor = anchorStore.positions[sourceColumn] ?? EMPTY_ANCHOR
 		const sourceBaseAnchor = anchorStore.basePositions[sourceColumn] ?? sourceAnchor
 		const destinationAnchor = anchorStore.positions[destinationColumn] ?? sourceAnchor
 		const destinationBaseAnchor = anchorStore.basePositions[destinationColumn] ?? destinationAnchor
@@ -232,9 +237,9 @@ export function WobbleSphere({
 		let desiredX = carrierPosition.x
 		let desiredZ = carrierPosition.z
 
-		if (carrierPosition.y >= firstColumnY) {
+		if (carrierPosition.y >= FIRST_COLUMN_Y) {
 			const verticalProgress = THREE.MathUtils.clamp(
-				(SPHERE_PATH.startY - carrierPosition.y) / (SPHERE_PATH.startY - firstColumnY),
+				(SPHERE_PATH.startY - carrierPosition.y) / (SPHERE_PATH.startY - FIRST_COLUMN_Y),
 				0,
 				1,
 			)
@@ -317,24 +322,27 @@ export function WobbleSphere({
 
 	return (
 		<>
-			<MotionPathControls object={pathCarrierRef} curves={[route.curve]} damping={0.7} eps={0.00001} loop={false}>
+			<MotionPathControls object={pathCarrierRef} curves={motionCurves} damping={0.7} eps={0.00001} loop={false}>
 				<ScrollPathDriver scrollYProgress={scrollYProgress} />
 			</MotionPathControls>
 			<Trail
 				ref={trail}
-				width={mobilePerformance ? 0.16 : 2.62}
-				length={mobilePerformance ? 3.6 : 8}
+				width={performanceProfile.conserveResources ? 0.16 : 2.62}
+				length={performanceProfile.trailLength}
 				decay={1}
 				// Drei compares stride per frame, so this must stay near zero to let
 				// the trail head finish the sphere's damped movement without a gap.
 				stride={0.0001}
-				interval={mobilePerformance ? 2 : 1}
+				interval={performanceProfile.trailInterval}
 				color="#d8c9ff"
 				attenuation={TRAIL_ATTENUATION}
 			>
 				<group ref={pathCarrierRef} position={[SPHERE_PATH.startX, SPHERE_PATH.startY, SPHERE_PATH.z]}>
 					<mesh ref={sphere}>
-						<sphereGeometry key={sphereSegments} args={[0.62, sphereSegments, sphereSegments]} />
+						<sphereGeometry
+							key={performanceProfile.sphereSegments}
+							args={[0.62, performanceProfile.sphereSegments, performanceProfile.sphereSegments]}
+						/>
 						<shaderMaterial
 							ref={material}
 							vertexShader={WOBBLE_VERTEX_SHADER}

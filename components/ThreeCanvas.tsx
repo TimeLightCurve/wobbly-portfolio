@@ -5,7 +5,7 @@ import { Canvas } from '@react-three/fiber'
 import { useScroll } from 'motion/react'
 import { Suspense, useCallback, useMemo, useRef, type CSSProperties } from 'react'
 import * as THREE from 'three'
-import { useEvenIOSViewport, useMobilePerformanceProfile } from './CanvasViewport'
+import { useEvenIOSViewport, useScenePerformanceProfile } from './CanvasViewport'
 import { FlightStatements } from './FlightStatements'
 import { PipelineRoom } from './PipelineRoom'
 import { PointerAudioModulator } from './PointerAudio'
@@ -22,28 +22,38 @@ import { ScrollSectionSnap } from './ScrollSectionSnap'
 import { ColumnAnchorStore, WobbleSphere } from './WobbleSphere'
 import { projects } from './projects'
 
+const CANVAS_CAMERA = { position: [0, 0, 5] as [number, number, number], fov: DESKTOP_FOV_MAX }
+const CANVAS_STYLE: CSSProperties = { touchAction: 'pan-y' }
+const FALLBACK_LIGHT_POSITION: [number, number, number] = [4, 6, 5]
+
 export function ThreeCanvas() {
 	const { scrollYProgress } = useScroll()
-	const mobilePerformance = useMobilePerformanceProfile()
+	const performanceProfile = useScenePerformanceProfile()
 	const iosViewport = useEvenIOSViewport()
-	const audio = useSceneAudio(mobilePerformance)
+	const audio = useSceneAudio(performanceProfile.conserveResources)
 	const anchorStore = useMemo(() => new ColumnAnchorStore(), [])
 	const sectionRef = useRef<HTMLElement>(null)
 	const spherePathCarrier = useRef<THREE.Group>(null!)
 	const columnCount = getProjectColumnCount(projects.length)
 	const route = useMemo(() => createSceneRoute(columnCount), [columnCount])
-	const sectionHeightVariables = {
+	const canvasGl = useMemo(() => ({
+		antialias: false,
+		powerPreference: performanceProfile.conserveResources
+			? 'default' as const
+			: 'high-performance' as const,
+	}), [performanceProfile.conserveResources])
+	const sectionHeightVariables = useMemo(() => ({
 		'--desktop-canvas-height': `${(1500 + route.length * DESKTOP_SCROLL_VH_PER_ROUTE_UNIT).toFixed(3)}vh`,
 		'--mobile-canvas-height': `${(100 + route.length * MOBILE_SCROLL_VH_PER_ROUTE_UNIT).toFixed(3)}svh`,
-	} as CSSProperties
-	const stickyViewportStyle = {
+	}) as CSSProperties, [route.length])
+	const stickyViewportStyle = useMemo(() => ({
 		touchAction: 'pan-y',
 		...(iosViewport && {
 			width: `${iosViewport.width}px`,
 			height: `${iosViewport.height}px`,
 			marginInline: 'auto',
 		}),
-	} as CSSProperties
+	}) as CSSProperties, [iosViewport])
 
 	const handleAnchorChange = useCallback((
 		columnIndex: number,
@@ -63,11 +73,11 @@ export function ThreeCanvas() {
 			<ScrollSectionSnap sectionRef={sectionRef} snapProgress={route.snapProgress} />
 			<div className="three-canvas-sticky sticky top-0 z-10 h-screen w-full" style={stickyViewportStyle}>
 				<Canvas
-					camera={{ position: [0, 0, 5], fov: DESKTOP_FOV_MAX }}
-					dpr={mobilePerformance ? [1, 3] : [1, 2]}
-					gl={{ antialias: false, powerPreference: mobilePerformance ? 'default' : 'high-performance' }}
+					camera={CANVAS_CAMERA}
+					dpr={performanceProfile.dpr}
+					gl={canvasGl}
 					className="h-full w-full"
-					style={{ touchAction: 'pan-y' }}
+					style={CANVAS_STYLE}
 				>
 					<ResponsiveCameraFov scrollYProgress={scrollYProgress} route={route} />
 					<PipelineAtmosphere scrollYProgress={scrollYProgress} route={route} />
@@ -77,12 +87,20 @@ export function ThreeCanvas() {
 						enabled={audio.enabled}
 					/>
 					<Suspense fallback={null}>
-						<Environment files="/venice_sunset_1k.hdr" background={false} environmentIntensity={0.5} />
+						{performanceProfile.useEnvironment ? (
+							<Environment files="/venice_sunset_1k.hdr" background={false} environmentIntensity={0.5} />
+						) : (
+							<>
+								<ambientLight intensity={0.42} />
+								<directionalLight position={FALLBACK_LIGHT_POSITION} intensity={0.72} color="#ded8e8" />
+							</>
+						)}
 						<Room
 							position={[0, 0, 0]}
 							rotation={[0, -Math.PI / 2, 0]}
 							onAnchorChange={handleAnchorChange}
 							onColumnMotion={audio.handleColumnMotion}
+							reducedPerformance={performanceProfile.conserveResources}
 						/>
 						<PipelineRoom
 							positionX={route.pipelinePositionX}
@@ -95,27 +113,27 @@ export function ThreeCanvas() {
 							scrollYProgress={scrollYProgress}
 							anchorStore={anchorStore}
 							route={route}
-							mobilePerformance={mobilePerformance}
+							performanceProfile={performanceProfile}
 							pathCarrierRef={spherePathCarrier}
 						/>
 						<FlightStatements
 							route={route}
 							scrollYProgress={scrollYProgress}
 							pathCarrierRef={spherePathCarrier}
-							mobilePerformance={mobilePerformance}
+							mobilePerformance={performanceProfile.conserveResources}
 						/>
 					</Suspense>
 
 					<SceneCamera
 						scrollYProgress={scrollYProgress}
 						route={route}
-						mobilePerformance={mobilePerformance}
+						mobilePerformance={performanceProfile.conserveResources}
 						pathCarrierRef={spherePathCarrier}
 					/>
 					<PipelineBloom
 						scrollYProgress={scrollYProgress}
 						route={route}
-						mobilePerformance={mobilePerformance}
+						performanceProfile={performanceProfile}
 					/>
 				</Canvas>
 				<SceneAudioPanel store={audio.controlStore} enabled={audio.enabled} onToggle={audio.toggle} />

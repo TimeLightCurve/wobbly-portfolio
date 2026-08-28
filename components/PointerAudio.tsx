@@ -835,6 +835,7 @@ export function PointerAudioModulator({
 	enabled: boolean
 }) {
 	const previousPointer = useRef(new THREE.Vector2())
+	const currentPointer = useRef(new THREE.Vector2())
 	const previousProximity = useRef(0)
 	const hasPointerSample = useRef(false)
 	const pointerArmed = useRef(false)
@@ -965,15 +966,30 @@ export function PointerAudioModulator({
 		}
 	}, [enabled, rigRef, settings])
 
+	useEffect(() => {
+		const rig = rigRef.current
+		if (!rig || rig.context.state === 'closed') return
+		const now = rig.context.currentTime
+		rig.master.gain.setTargetAtTime(enabled ? settings.masterVolume : 0, now, 0.035)
+		rig.televisionStaticGain.gain.setTargetAtTime(settings.backgroundNoiseLevel, now, 0.08)
+		rig.televisionStaticLfoDepth.gain.setTargetAtTime(settings.backgroundNoiseLevel * 0.3, now, 0.12)
+	}, [enabled, rigRef, settings.backgroundNoiseLevel, settings.masterVolume])
+
 	useFrame((state, delta) => {
 		const pointerX = THREE.MathUtils.clamp(state.pointer.x, -1, 1)
 		const pointerY = THREE.MathUtils.clamp(state.pointer.y, -1, 1)
-		const currentPointer = new THREE.Vector2(pointerX, pointerY)
+		currentPointer.current.set(pointerX, pointerY)
+		if (!enabled) {
+			pointerCapture.current = false
+			hasPointerSample.current = false
+			previousPointer.current.copy(currentPointer.current)
+			return
+		}
 		const frameDuration = Math.max(delta, 1 / 240)
 		const distance = Math.hypot(pointerX, pointerY)
 		const proximity = 1 - THREE.MathUtils.clamp(distance / Math.SQRT2, 0, 1)
 		const rawPointerVelocity = hasPointerSample.current
-			? currentPointer.distanceTo(previousPointer.current) / frameDuration
+			? currentPointer.current.distanceTo(previousPointer.current) / frameDuration
 			: 0
 		const pointerVelocity = 1 - Math.exp(-rawPointerVelocity * settings.pointerVelocityScale)
 		const inwardMotion = proximity - previousProximity.current
@@ -984,12 +1000,7 @@ export function PointerAudioModulator({
 		}
 		const rig = rigRef.current
 		if (rig && rig.context.state === 'running') {
-			const now = rig.context.currentTime
-			rig.master.gain.setTargetAtTime(enabled ? settings.masterVolume : 0, now, 0.035)
-			rig.televisionStaticGain.gain.setTargetAtTime(settings.backgroundNoiseLevel, now, 0.08)
-			rig.televisionStaticLfoDepth.gain.setTargetAtTime(settings.backgroundNoiseLevel * 0.3, now, 0.12)
-
-			if (enabled && pointerArmed.current && proximity >= settings.centerThreshold && inwardMotion > 0) {
+			if (pointerArmed.current && proximity >= settings.centerThreshold && inwardMotion > 0) {
 				pointerArmed.current = false
 				pointerCapture.current = true
 				capturedProximity.current = proximity
@@ -997,7 +1008,7 @@ export function PointerAudioModulator({
 				capturedDirection.current = pointerY <= previousPointer.current.y ? 1 : -1
 			}
 
-			if (enabled && pointerCapture.current) {
+			if (pointerCapture.current) {
 				capturedProximity.current = Math.max(capturedProximity.current, proximity)
 				if (pointerVelocity > capturedVelocity.current) {
 					capturedVelocity.current = pointerVelocity
@@ -1017,11 +1028,9 @@ export function PointerAudioModulator({
 					pointerCapture.current = false
 				}
 			}
-		} else if (!enabled) {
-			pointerCapture.current = false
 		}
 
-		previousPointer.current.copy(currentPointer)
+		previousPointer.current.copy(currentPointer.current)
 		previousProximity.current = proximity
 		hasPointerSample.current = true
 	})

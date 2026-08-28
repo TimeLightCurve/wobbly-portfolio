@@ -46,14 +46,25 @@ function toThickLineGeometry(edges: THREE.EdgesGeometry): THREE.BufferGeometry {
   const indices = new Uint32Array(segmentCount * 6)
 
   for (let segment = 0; segment < segmentCount; segment += 1) {
-    const start = new THREE.Vector3().fromBufferAttribute(positions, segment * 2)
-    const end = new THREE.Vector3().fromBufferAttribute(positions, segment * 2 + 1)
+    const sourceStart = segment * 2
+    const sourceEnd = sourceStart + 1
+    const startX = positions.getX(sourceStart)
+    const startY = positions.getY(sourceStart)
+    const startZ = positions.getZ(sourceStart)
+    const endX = positions.getX(sourceEnd)
+    const endY = positions.getY(sourceEnd)
+    const endZ = positions.getZ(sourceEnd)
     const vertexOffset = segment * 4
     const indexOffset = segment * 6
 
     for (let vertex = 0; vertex < 4; vertex += 1) {
-      starts.set(start.toArray(), (vertexOffset + vertex) * 3)
-      ends.set(end.toArray(), (vertexOffset + vertex) * 3)
+      const attributeOffset = (vertexOffset + vertex) * 3
+      starts[attributeOffset] = startX
+      starts[attributeOffset + 1] = startY
+      starts[attributeOffset + 2] = startZ
+      ends[attributeOffset] = endX
+      ends[attributeOffset + 1] = endY
+      ends[attributeOffset + 2] = endZ
     }
 
     corners.set([-1, 0, 1, 0, -1, 1, 1, 1], segment * 8)
@@ -89,6 +100,8 @@ export function InkEdges({
   useEffect(() => {
     uniforms.uResolution.value.set(size.width * gl.getPixelRatio(), size.height * gl.getPixelRatio())
   }, [gl, size.height, size.width, uniforms])
+
+  useEffect(() => () => geometry.dispose(), [geometry])
 
   return (
     <mesh name="ink-outline" geometry={geometry} renderOrder={1} frustumCulled={false} scale={scale} position={position}>

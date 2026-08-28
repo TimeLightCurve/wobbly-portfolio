@@ -72,15 +72,20 @@ export function useSceneAudio(mobilePerformance: boolean) {
 		}, { collapsed: true }),
 	}, { store: controlStore }) as PointerAudioSettings
 	const rigRef = useRef<PointerAudioRig | null>(null)
+	const mobilePerformanceRef = useRef(mobilePerformance)
 	const enabledRef = useRef(false)
 	const [enabled, setEnabled] = useState(false)
+
+	useEffect(() => {
+		mobilePerformanceRef.current = mobilePerformance
+	}, [mobilePerformance])
 
 	const enable = useCallback(() => {
 		try {
 			const currentRig = rigRef.current
 			const rig = currentRig && currentRig.context.state !== 'closed'
 				? currentRig
-				: createPointerAudioRig(mobilePerformance)
+				: createPointerAudioRig(mobilePerformanceRef.current)
 			rigRef.current = rig
 			void rig.context.resume()
 			setPointerAudioMuted(rig, false)
@@ -89,7 +94,7 @@ export function useSceneAudio(mobilePerformance: boolean) {
 		} catch {
 			// Web Audio can be unavailable or blocked by browser/device policy.
 		}
-	}, [mobilePerformance])
+	}, [])
 
 	const disable = useCallback(() => {
 		if (rigRef.current) setPointerAudioMuted(rigRef.current, true)
