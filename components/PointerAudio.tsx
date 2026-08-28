@@ -11,19 +11,26 @@ type ActiveSlowMotionVoice = {
 	owner: SlowMotionGestureOwner
 	sub: OscillatorNode
 	body: OscillatorNode
-	noise: AudioBufferSourceNode
-	rumbleFilter: BiquadFilterNode
-	noiseFilter: BiquadFilterNode
+	texture: AudioBufferSourceNode
+	textureFilter: BiquadFilterNode
 	rumbleEnvelope: GainNode
-	noiseEnvelope: GainNode
+	textureEnvelope: GainNode
 	panner: StereoPannerNode
 	output: GainNode
+	lastSweepTime: number
+	sweepEndTime: number
+	panOffset: number
 	basePitch: number
-	pitchDropScale: number
-	cutoffScale: number
-	playbackFloor: number
-	rumbleScale: number
-	noiseScale: number
+	glideRatio: number
+	phraseDuration: number
+	filterBase: number
+	filterPeakVariation: number
+	filterPeakPosition: number
+	pitchGlidePosition: number
+	resonance: number
+	textureRate: number
+	textureRateEndScale: number
+	attack: number
 	stopped: boolean
 }
 
@@ -32,6 +39,8 @@ export type PointerAudioRig = {
 	master: GainNode
 	noiseBuffer: AudioBuffer
 	slowMotionBuffer: AudioBuffer
+	televisionStaticGain: GainNode
+	televisionStaticLfoDepth: GainNode
 	mobilePerformance: boolean
 	activeSources: Set<AudioScheduledSourceNode>
 	lastTriggerTime: number
@@ -42,6 +51,7 @@ export type PointerAudioRig = {
 
 export type PointerAudioSettings = {
 	masterVolume: number
+	backgroundNoiseLevel: number
 	centerThreshold: number
 	centerRearm: number
 	triggerCooldown: number
@@ -137,6 +147,38 @@ function createSlowMotionRumble(context: AudioContext, duration: number) {
 	return buffer
 }
 
+function createTelevisionStatic(context: AudioContext, duration: number) {
+	const buffer = context.createBuffer(2, context.sampleRate * duration, context.sampleRate)
+
+	for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+		const samples = buffer.getChannelData(channel)
+		let brown = 0
+		let murmur = 0
+		let spike = 0
+		let spikePhase = 0
+		let spikeFrequency = 90
+		for (let index = 0; index < samples.length; index += 1) {
+			const white = Math.random() * 2 - 1
+			brown = brown * 0.994 + white * 0.006
+			murmur = murmur * 0.965 + white * 0.035
+			if (Math.random() < 0.000055) {
+				spike = 0.6 + Math.random() * 0.4
+				spikeFrequency = 55 + Math.random() * 170
+			}
+			spikePhase += Math.PI * 2 * spikeFrequency / context.sampleRate
+			spike *= 0.9986
+			const ringingSpike = Math.sin(spikePhase) * spike
+			samples[index] = THREE.MathUtils.clamp(
+				brown * 4.4 + murmur * 0.8 + ringingSpike,
+				-1,
+				1,
+			)
+		}
+	}
+
+	return buffer
+}
+
 export function createPointerAudioRig(mobilePerformance = false): PointerAudioRig {
 	const context = new AudioContext()
 	const master = context.createGain()
@@ -151,14 +193,46 @@ export function createPointerAudioRig(mobilePerformance = false): PointerAudioRi
 	master.connect(compressor).connect(context.destination)
 
 	const noiseDuration = mobilePerformance ? 1 : 10
+	const televisionStatic = context.createBufferSource()
+	const televisionStaticHighpass = context.createBiquadFilter()
+	const televisionStaticLowpass = context.createBiquadFilter()
+	const televisionStaticGain = context.createGain()
+	const televisionStaticLfo = context.createOscillator()
+	const televisionStaticLfoDepth = context.createGain()
+	const activeSources = new Set<AudioScheduledSourceNode>()
+
+	televisionStatic.buffer = createTelevisionStatic(context, mobilePerformance ? 1 : 4)
+	televisionStatic.loop = true
+	televisionStaticHighpass.type = 'highpass'
+	televisionStaticHighpass.frequency.value = 28
+	televisionStaticHighpass.Q.value = 0.35
+	televisionStaticLowpass.type = 'lowpass'
+	televisionStaticLowpass.frequency.value = 980
+	televisionStaticLowpass.Q.value = 3.2
+	televisionStaticGain.gain.value = 0.055
+	televisionStaticLfo.type = 'sine'
+	televisionStaticLfo.frequency.value = 0.085
+	televisionStaticLfoDepth.gain.value = 0.014
+	televisionStaticLfo.connect(televisionStaticLfoDepth).connect(televisionStaticGain.gain)
+	televisionStatic
+		.connect(televisionStaticHighpass)
+		.connect(televisionStaticLowpass)
+		.connect(televisionStaticGain)
+		.connect(master)
+	televisionStatic.start()
+	televisionStaticLfo.start()
+	activeSources.add(televisionStatic)
+	activeSources.add(televisionStaticLfo)
 
 	return {
 		context,
 		master,
 		noiseBuffer: createGestureNoise(context, noiseDuration),
 		slowMotionBuffer: createSlowMotionRumble(context, noiseDuration),
+		televisionStaticGain,
+		televisionStaticLfoDepth,
 		mobilePerformance,
-		activeSources: new Set(),
+		activeSources,
 		lastTriggerTime: Number.NEGATIVE_INFINITY,
 		lastSlowMotionTime: Number.NEGATIVE_INFINITY,
 		activeSlowMotionVoice: null,
@@ -351,7 +425,7 @@ function triggerGestureVoice(
 	noise.stop(endTime + 0.02)
 }
 
-type SlowMotionGesture = {
+type MotionGesture = {
 	velocity: number
 	direction: number
 	pan: number
@@ -359,7 +433,7 @@ type SlowMotionGesture = {
 
 function updateHeldSlowMotionVoice(
 	rig: PointerAudioRig,
-	gesture: SlowMotionGesture,
+	gesture: MotionGesture,
 	settings: PointerAudioSettings,
 ) {
 	const voice = rig.activeSlowMotionVoice
@@ -367,45 +441,50 @@ function updateHeldSlowMotionVoice(
 
 	const now = rig.context.currentTime
 	const velocity = THREE.MathUtils.clamp(gesture.velocity, 0, 1)
-	const motionStrength = Math.pow(velocity, 1.25)
-	const pitchDrop = Math.pow(
-		2,
-		-(settings.slowMotionPitchDrop * voice.pitchDropScale * THREE.MathUtils.lerp(0.12, 1, motionStrength)) / 12,
-	)
-	const response = THREE.MathUtils.lerp(0.055, 0.018, motionStrength)
-	const maximumFilterFrequency = Math.min(1400, rig.context.sampleRate * 0.42)
-	const cutoff = THREE.MathUtils.clamp(
-		(settings.slowMotionCutoff + velocity * settings.slowMotionCutoffStretch) * voice.cutoffScale,
-		40,
-		maximumFilterFrequency,
-	)
+	const motionStrength = Math.pow(velocity, 0.68)
+	const filterPeak = 430 + motionStrength * 360 + voice.filterPeakVariation
+	const rumblePeak = Math.max(settings.slowMotionRumbleLevel * (0.12 + motionStrength * 0.07), 0.0001)
+	const texturePeak = Math.max(settings.slowMotionNoiseLevel * (0.07 + motionStrength * 0.055), 0.0001)
 
-	voice.sub.frequency.setTargetAtTime(Math.max(voice.basePitch * 0.82 * pitchDrop, 18), now, response)
-	voice.body.frequency.setTargetAtTime(Math.max(voice.basePitch * 2.15 * pitchDrop, 44), now, response)
-	voice.noise.playbackRate.setTargetAtTime(THREE.MathUtils.lerp(0.72, voice.playbackFloor, motionStrength), now, response)
-	voice.rumbleFilter.frequency.setTargetAtTime(cutoff, now, response * 1.2)
-	voice.rumbleFilter.Q.setTargetAtTime(0.7 + settings.slowMotionResonance * 0.04, now, 0.025)
-	voice.noiseFilter.frequency.setTargetAtTime(
-		THREE.MathUtils.lerp(THREE.MathUtils.clamp(cutoff * 0.9, 360, 780), 140, motionStrength),
-		now,
-		response * 1.4,
-	)
-	voice.rumbleEnvelope.gain.setTargetAtTime(
-		Math.max(settings.slowMotionRumbleLevel * voice.rumbleScale * (0.55 + velocity * 0.45), 0.0001),
-		now,
-		0.025,
-	)
-	voice.noiseEnvelope.gain.setTargetAtTime(
-		Math.max(settings.slowMotionNoiseLevel * voice.noiseScale * (0.48 + velocity * 0.52), 0.0001),
-		now,
-		0.032,
-	)
+	if (now - voice.lastSweepTime >= voice.phraseDuration * 0.72) {
+		voice.lastSweepTime = now
+		const phraseEnd = now + voice.phraseDuration
+		voice.sweepEndTime = phraseEnd
+		const filterPeakTime = now + voice.phraseDuration * voice.filterPeakPosition
+		const pitchGlideTime = now + voice.phraseDuration * voice.pitchGlidePosition
+
+		for (const [oscillator, start, end] of [
+			[voice.sub, voice.basePitch, voice.basePitch * voice.glideRatio],
+			[voice.body, voice.basePitch * 1.005, voice.basePitch * voice.glideRatio * 1.012],
+		] as const) {
+			oscillator.frequency.cancelScheduledValues(now)
+			oscillator.frequency.setValueAtTime(start, now)
+			oscillator.frequency.exponentialRampToValueAtTime(end, pitchGlideTime)
+			oscillator.frequency.exponentialRampToValueAtTime(Math.max(voice.basePitch * 0.86, 24), phraseEnd)
+		}
+
+		voice.texture.playbackRate.cancelScheduledValues(now)
+		voice.texture.playbackRate.setValueAtTime(voice.textureRate, now)
+		voice.texture.playbackRate.exponentialRampToValueAtTime(Math.max(voice.textureRate * voice.textureRateEndScale, 0.18), phraseEnd)
+		voice.textureFilter.frequency.cancelScheduledValues(now)
+		voice.textureFilter.frequency.setValueAtTime(voice.filterBase, now)
+		voice.textureFilter.frequency.exponentialRampToValueAtTime(filterPeak, filterPeakTime)
+		voice.textureFilter.frequency.exponentialRampToValueAtTime(Math.max(voice.filterBase * 0.78, 90), phraseEnd)
+		voice.textureFilter.Q.setTargetAtTime(voice.resonance, now, 0.055)
+
+		voice.rumbleEnvelope.gain.cancelAndHoldAtTime(now)
+		voice.rumbleEnvelope.gain.linearRampToValueAtTime(rumblePeak, now + voice.attack)
+		voice.rumbleEnvelope.gain.exponentialRampToValueAtTime(Math.max(rumblePeak * 0.26, 0.0001), phraseEnd)
+		voice.textureEnvelope.gain.cancelAndHoldAtTime(now)
+		voice.textureEnvelope.gain.linearRampToValueAtTime(texturePeak, now + voice.attack * 1.3)
+		voice.textureEnvelope.gain.exponentialRampToValueAtTime(Math.max(texturePeak * 0.22, 0.0001), phraseEnd)
+	}
 	voice.panner.pan.setTargetAtTime(
-		THREE.MathUtils.clamp(gesture.pan * settings.stereoWidth + gesture.direction * 0.06, -1, 1),
+		THREE.MathUtils.clamp(gesture.pan * settings.stereoWidth + voice.panOffset, -1, 1),
 		now,
-		0.035,
+		0.12,
 	)
-	voice.output.gain.setTargetAtTime(settings.slowMotionOutput, now, 0.02)
+	voice.output.gain.setTargetAtTime(settings.slowMotionOutput * 0.5, now, 0.06)
 }
 
 function releaseHeldSlowMotionVoice(rig: PointerAudioRig, owner: SlowMotionGestureOwner) {
@@ -415,20 +494,16 @@ function releaseHeldSlowMotionVoice(rig: PointerAudioRig, owner: SlowMotionGestu
 	voice.stopped = true
 	rig.activeSlowMotionVoice = null
 	const now = rig.context.currentTime
-	const releaseEnd = now + 0.34
+	const releaseEnd = Math.max(now + 0.8, voice.sweepEndTime + 0.65)
 
-	for (const envelope of [voice.rumbleEnvelope, voice.noiseEnvelope]) {
-		envelope.gain.cancelScheduledValues(now)
-		envelope.gain.setValueAtTime(Math.max(envelope.gain.value, 0.0001), now)
-		envelope.gain.exponentialRampToValueAtTime(0.0001, releaseEnd)
-	}
-	voice.sub.frequency.setTargetAtTime(voice.basePitch * 0.82, now, 0.065)
-	voice.body.frequency.setTargetAtTime(voice.basePitch * 2.15, now, 0.065)
-	voice.noise.playbackRate.setTargetAtTime(0.82, now, 0.06)
+	voice.rumbleEnvelope.gain.cancelAndHoldAtTime(now)
+	voice.rumbleEnvelope.gain.linearRampToValueAtTime(Math.max(voice.rumbleEnvelope.gain.value, 0.0001), voice.sweepEndTime)
+	voice.rumbleEnvelope.gain.exponentialRampToValueAtTime(0.0001, releaseEnd)
+	voice.textureEnvelope.gain.exponentialRampToValueAtTime(0.0001, releaseEnd)
 
-	for (const source of [voice.sub, voice.body, voice.noise]) {
+	for (const source of [voice.sub, voice.body, voice.texture]) {
 		try {
-			source.stop(releaseEnd + 0.04)
+			source.stop(releaseEnd + 0.02)
 		} catch {
 			// The source may already have ended.
 		}
@@ -438,7 +513,7 @@ function releaseHeldSlowMotionVoice(rig: PointerAudioRig, owner: SlowMotionGestu
 function beginHeldSlowMotionVoice(
 	rig: PointerAudioRig,
 	owner: SlowMotionGestureOwner,
-	gesture: SlowMotionGesture,
+	gesture: MotionGesture,
 	settings: PointerAudioSettings,
 ) {
 	if (rig.context.state === 'closed' || rig.muted) return
@@ -452,102 +527,97 @@ function beginHeldSlowMotionVoice(
 
 	const now = rig.context.currentTime
 	const startTime = now + 0.004
-	const randomSigned = () => Math.random() * 2 - 1
-	const variation = THREE.MathUtils.clamp(settings.randomness, 0, 1)
-	const pitchVariation = randomSigned() * 3.5 * variation
-	const pitchDropScale = 1 + randomSigned() * 0.2 * variation
-	const cutoffScale = 1 + randomSigned() * 0.32 * variation
-	const playbackFloor = THREE.MathUtils.clamp(0.16 + randomSigned() * 0.06 * variation, 0.1, 0.22)
-	const rumbleScale = 1 + randomSigned() * 0.24 * variation
-	const noiseScale = 1 + randomSigned() * 0.3 * variation
-	const basePitch = THREE.MathUtils.clamp(
-		settings.slowMotionPitch * Math.pow(2, pitchVariation / 12),
-		18,
-		100,
-	)
 	const sub = rig.context.createOscillator()
 	const body = rig.context.createOscillator()
-	const noise = rig.context.createBufferSource()
+	const texture = rig.context.createBufferSource()
 	const subLevel = rig.context.createGain()
 	const bodyLevel = rig.context.createGain()
-	const rumbleFilter = rig.context.createBiquadFilter()
-	const noiseHighpass = rig.context.createBiquadFilter()
-	const noiseFilter = rig.context.createBiquadFilter()
+	const textureHighpass = rig.context.createBiquadFilter()
+	const textureFilter = rig.context.createBiquadFilter()
 	const rumbleEnvelope = rig.context.createGain()
-	const noiseEnvelope = rig.context.createGain()
+	const textureEnvelope = rig.context.createGain()
 	const panner = rig.context.createStereoPanner()
 	const output = rig.context.createGain()
 
-	sub.type = 'sine'
-	sub.frequency.value = basePitch * 0.82
-	subLevel.gain.value = 0.34
+	sub.type = 'sawtooth'
+	sub.frequency.value = 42
+	subLevel.gain.value = 0.14
 	body.type = 'triangle'
-	body.frequency.value = basePitch * 2.15
-	body.detune.value = randomSigned() * 8 * variation
-	bodyLevel.gain.value = 0.22
-	noise.buffer = rig.slowMotionBuffer
-	noise.loop = true
-	noise.playbackRate.value = 0.72
-	rumbleFilter.type = 'lowpass'
-	rumbleFilter.frequency.value = settings.slowMotionCutoff
-	rumbleFilter.Q.value = 0.7 + settings.slowMotionResonance * 0.04
-	noiseHighpass.type = 'highpass'
-	noiseHighpass.frequency.value = 38
-	noiseFilter.type = 'lowpass'
-	noiseFilter.frequency.value = THREE.MathUtils.clamp(settings.slowMotionCutoff * 2.2, 360, 780)
-	noiseFilter.Q.value = 0.8
+	body.frequency.value = 42.2
+	body.detune.value = (Math.random() * 2 - 1) * 7
+	bodyLevel.gain.value = 0.075
+	texture.buffer = rig.noiseBuffer
+	texture.loop = true
+	texture.playbackRate.value = 0.45
+	textureHighpass.type = 'highpass'
+	textureHighpass.frequency.value = 36
+	textureFilter.type = 'lowpass'
+	textureFilter.frequency.value = 160
+	textureFilter.Q.value = 6.5
 	rumbleEnvelope.gain.setValueAtTime(0.0001, now)
-	noiseEnvelope.gain.setValueAtTime(0.0001, now)
+	textureEnvelope.gain.setValueAtTime(0.0001, now)
 	panner.pan.value = THREE.MathUtils.clamp(gesture.pan * settings.stereoWidth, -1, 1)
-	output.gain.value = settings.slowMotionOutput
+	output.gain.value = settings.slowMotionOutput * 0.5
 
-	sub.connect(subLevel).connect(rumbleFilter)
-	body.connect(bodyLevel).connect(rumbleFilter)
-	rumbleFilter.connect(rumbleEnvelope).connect(panner)
-	noise.connect(noiseHighpass).connect(noiseFilter).connect(noiseEnvelope).connect(panner)
+	sub.connect(subLevel).connect(rumbleEnvelope)
+	body.connect(bodyLevel).connect(rumbleEnvelope)
+	rumbleEnvelope.connect(textureFilter)
+	texture.connect(textureHighpass).connect(textureEnvelope).connect(textureFilter)
+	textureFilter.connect(panner)
 	panner.connect(output).connect(rig.master)
 
+	const noteOffsets = [-12, -7, -5, 0, 3, 7]
+	const noteOffset = noteOffsets[Math.floor(Math.random() * noteOffsets.length)]
 	const voice: ActiveSlowMotionVoice = {
 		owner,
 		sub,
 		body,
-		noise,
-		rumbleFilter,
-		noiseFilter,
+		texture,
+		textureFilter,
 		rumbleEnvelope,
-		noiseEnvelope,
+		textureEnvelope,
 		panner,
 		output,
-		basePitch,
-		pitchDropScale,
-		cutoffScale,
-		playbackFloor,
-		rumbleScale,
-		noiseScale,
+		lastSweepTime: Number.NEGATIVE_INFINITY,
+		sweepEndTime: startTime,
+		panOffset: (Math.random() * 2 - 1) * 0.16,
+		basePitch: THREE.MathUtils.clamp(settings.slowMotionPitch * Math.pow(2, noteOffset / 12), 27, 68),
+		glideRatio: gesture.direction >= 0
+			? THREE.MathUtils.lerp(1.08, 1.42, Math.random())
+			: THREE.MathUtils.lerp(0.68, 0.92, Math.random()),
+		phraseDuration: THREE.MathUtils.lerp(2.1, 3.6, Math.random()),
+		filterBase: 125 + Math.random() * 115,
+		filterPeakVariation: Math.random() * 310,
+		filterPeakPosition: 0.18 + Math.random() * 0.18,
+		pitchGlidePosition: 0.42 + Math.random() * 0.18,
+		resonance: 5.2 + Math.random() * 4.6,
+		textureRate: 0.32 + Math.random() * 0.52,
+		textureRateEndScale: 0.72 + Math.random() * 0.36,
+		attack: 0.09 + Math.random() * 0.12,
 		stopped: false,
 	}
 	rig.activeSlowMotionVoice = voice
 
-	for (const source of [sub, body, noise]) {
+	for (const source of [sub, body, texture]) {
 		rig.activeSources.add(source)
 		source.addEventListener('ended', () => rig.activeSources.delete(source), { once: true })
 	}
 	sub.addEventListener('ended', () => {
-		for (const node of [sub, body, noise, subLevel, bodyLevel, rumbleFilter, noiseHighpass, noiseFilter, rumbleEnvelope, noiseEnvelope, panner, output]) {
+		for (const node of [sub, body, texture, subLevel, bodyLevel, textureHighpass, textureFilter, rumbleEnvelope, textureEnvelope, panner, output]) {
 			node.disconnect()
 		}
 	}, { once: true })
 
-	const noiseOffset = Math.random() * rig.slowMotionBuffer.duration
+	const textureOffset = Math.random() * rig.noiseBuffer.duration
 	sub.start(startTime)
 	body.start(startTime)
-	noise.start(startTime, noiseOffset)
+	texture.start(startTime, textureOffset)
 	updateHeldSlowMotionVoice(rig, gesture, settings)
 }
 
 function triggerSlowMotionVoice(
 	rig: PointerAudioRig,
-	gesture: SlowMotionGesture,
+	gesture: MotionGesture,
 	settings: PointerAudioSettings,
 ) {
 	const now = rig.context.currentTime
@@ -820,7 +890,7 @@ export function PointerAudioModulator({
 				wheelStrength.current = 0
 				wheelTimer.current = null
 				releaseHeldSlowMotionVoice(rig, 'wheel')
-			}, 140)
+			}, 320)
 		}
 
 		const handleTouchStart = (event: TouchEvent) => {
@@ -916,6 +986,8 @@ export function PointerAudioModulator({
 		if (rig && rig.context.state === 'running') {
 			const now = rig.context.currentTime
 			rig.master.gain.setTargetAtTime(enabled ? settings.masterVolume : 0, now, 0.035)
+			rig.televisionStaticGain.gain.setTargetAtTime(settings.backgroundNoiseLevel, now, 0.08)
+			rig.televisionStaticLfoDepth.gain.setTargetAtTime(settings.backgroundNoiseLevel * 0.3, now, 0.12)
 
 			if (enabled && pointerArmed.current && proximity >= settings.centerThreshold && inwardMotion > 0) {
 				pointerArmed.current = false

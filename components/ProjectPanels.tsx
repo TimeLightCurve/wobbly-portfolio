@@ -133,7 +133,10 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 									className="object-cover"
 								/>
 							</div>
-							<div className="project-panel__info">
+						<div className=' w-[98%] h-[98%] self-center place-self-center bg-[#090708]'>
+
+						
+						<div className="project-panel__info bg-[#090708]">
 								<p className="project-panel__eyebrow">Selected project</p>
 								<h2 className="project-panel__title">{project.title}</h2>
 								<p className="project-panel__blurb">{project.blurb}</p>
@@ -155,6 +158,7 @@ function ProjectFace({ project, layout, position, rotation, width, height, chann
 									))}
 								</div>
 							</div>
+						</div>
 					</article>
 				</div>
 			</Html>
