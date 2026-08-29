@@ -62,10 +62,12 @@ export type SceneRoute = {
 	curve: THREE.CatmullRomCurve3
 	snapProgress: number[]
 	columnProgress: number[]
+	pipelineProgress: number[]
 	pipelinePositionX: number
 	pipelinePositionY: number
 	pipelinePositionZ: number
 	pipelineInletY: number
+	lastColumnExitY: number
 	pipelineStartProgress: number
 	pipelineExitProgress: number
 	pipelineRevealProgress: number
@@ -112,6 +114,7 @@ export function createSceneRoute(columnCount: number): SceneRoute {
 	))
 	const columnRoutePoints = columnPoints
 	const lastColumn = columnPoints[columnPoints.length - 1]
+	const lastColumnExitY = lastColumn.y - COLUMN_SPACING * 0.48
 	const pipelineInletY = lastColumn.y - PIPELINE_GAP_AFTER_LAST_COLUMN + PIPELINE_ROOM_OFFSET_Y
 	const pipelinePositionY = pipelineInletY - PIPELINE_INLET_LOCAL_Y
 	const pipePoint = (x: number, y: number, z: number) => new THREE.Vector3(
@@ -196,10 +199,12 @@ export function createSceneRoute(columnCount: number): SceneRoute {
 		curve,
 		snapProgress: [0, ...columnProgress, ...pipelineProgress, ...flightSnapProgress],
 		columnProgress,
+		pipelineProgress,
 		pipelinePositionX: PIPELINE_MODEL_POSITION_X,
 		pipelinePositionY,
 		pipelinePositionZ: PIPELINE_MODEL_POSITION_Z,
 		pipelineInletY,
+		lastColumnExitY,
 		pipelineStartProgress,
 		pipelineExitProgress,
 		pipelineRevealProgress: THREE.MathUtils.lerp(

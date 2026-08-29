@@ -253,7 +253,7 @@ export function SceneCamera({
 			finalFocusPoint.x,
 			finalFocusPoint.y,
 			finalFocusPoint.z,
-			false,
+			true,
 		)
 	})
 

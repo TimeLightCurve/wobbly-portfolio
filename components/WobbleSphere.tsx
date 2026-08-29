@@ -1,11 +1,11 @@
 'use client'
 
 import { MotionPathControls, Trail, useMotion, type MeshLineGeometry } from '@react-three/drei'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { type MotionValue } from 'motion/react'
 import { useMemo, useRef, type RefObject } from 'react'
 import * as THREE from 'three'
-import { type ScenePerformanceProfile } from './CanvasViewport'
+import { MOBILE_BREAKPOINT, type ScenePerformanceProfile } from './CanvasViewport'
 import { COLUMN_SPACING, COLUMN_SYSTEM_OFFSET_Y, FIRST_COLUMN_CENTER_Y } from './Room'
 import {
 	FLIGHT_SPHERE_SCALE,
@@ -125,6 +125,7 @@ const WOBBLE_FRAGMENT_SHADER = `
 `
 
 const TRAIL_ATTENUATION = (width: number) => width * width
+const MOBILE_TRAIL_ATTENUATION = (width: number) => width * width * 0.22
 const PIPELINE_TRANSITION_START = 0.48
 const PIPELINE_TRANSITION_END = 0.94
 const FIRST_COLUMN_Y = COLUMN_SYSTEM_OFFSET_Y + FIRST_COLUMN_CENTER_Y
@@ -175,6 +176,8 @@ export function WobbleSphere({
 	const sphere = useRef<THREE.Mesh>(null)
 	const sphereLight = useRef<THREE.PointLight>(null)
 	const trail = useRef<MeshLineGeometry>(null)
+	const mobileTrail = useThree((state) => state.size.width <= MOBILE_BREAKPOINT)
+		|| performanceProfile.isMobile
 	const material = useRef<THREE.ShaderMaterial>(null)
 	const rotationAngle = useRef(0)
 	const pointerProximity = useRef(1)
@@ -264,6 +267,16 @@ export function WobbleSphere({
 		const targetX = desiredX - carrierPosition.x
 		const targetZ = desiredZ - carrierPosition.z
 		const pipelineTransition = THREE.MathUtils.smoothstep(scrollProgress, route.lastColumnProgress, route.pipelineStartProgress)
+		const emissionTransition = 1 - THREE.MathUtils.smoothstep(
+			carrierPosition.y,
+			route.pipelineInletY + 0.72,
+			route.lastColumnExitY,
+		)
+		const waveMorphTransition = THREE.MathUtils.smootherstep(
+			scrollProgress,
+			route.lastColumnProgress,
+			route.pipelineProgress[1],
+		)
 		const flightTransition = THREE.MathUtils.smoothstep(scrollProgress, route.pipelineExitProgress, route.flightStartProgress)
 		if (trail.current) {
 			trail.current.visible = scrollProgress >= route.pipelineExitProgress - 0.068
@@ -290,30 +303,30 @@ export function WobbleSphere({
 
 		if (material.current) {
 			const proximity = pointerProximity.current
-			const waveStrength = 1 - pipelineTransition
-			material.current.uniforms.uPositionFrequency.value = 1.9 * waveStrength
-			material.current.uniforms.uTimeFrequency.value = (0.66 + 0.001 * proximity) * waveStrength
+			const waveStrength = 1 - waveMorphTransition
+			material.current.uniforms.uPositionFrequency.value = 1.9
+			material.current.uniforms.uTimeFrequency.value = 0.66 + 0.001 * proximity
 			material.current.uniforms.uStrength.value = 0.14 * proximity * waveStrength
-			material.current.uniforms.uWarpPositionFrequency.value = 1.0 * proximity * waveStrength
-			material.current.uniforms.uWarpTimeFrequency.value = (0.72 + 0.0008 * proximity) * waveStrength
+			material.current.uniforms.uWarpPositionFrequency.value = 1.0
+			material.current.uniforms.uWarpTimeFrequency.value = 0.72 + 0.0008 * proximity
 			material.current.uniforms.uWarpStrength.value = 0.32 * proximity * waveStrength
-			material.current.uniforms.uTime.value = state.clock.getElapsedTime() * waveStrength
+			material.current.uniforms.uTime.value = state.clock.getElapsedTime()
 			material.current.uniforms.uColorA.value.setRGB(
-				THREE.MathUtils.lerp(0.063, 1.8, pipelineTransition),
-				THREE.MathUtils.lerp(0.063, 1.55, pipelineTransition),
-				THREE.MathUtils.lerp(0.063, 2.15, pipelineTransition),
+				THREE.MathUtils.lerp(0.063, 1.8, emissionTransition),
+				THREE.MathUtils.lerp(0.063, 1.55, emissionTransition),
+				THREE.MathUtils.lerp(0.063, 2.15, emissionTransition),
 			)
 			material.current.uniforms.uColorB.value.setRGB(
-				THREE.MathUtils.lerp(0.8, 3, pipelineTransition),
-				THREE.MathUtils.lerp(0.8, 2.65, pipelineTransition),
-				THREE.MathUtils.lerp(0.8, 3.45, pipelineTransition),
+				THREE.MathUtils.lerp(0.8, 3, emissionTransition),
+				THREE.MathUtils.lerp(0.8, 2.65, emissionTransition),
+				THREE.MathUtils.lerp(0.8, 3.45, emissionTransition),
 			)
 		}
 
 		if (sphereLight.current) {
 			sphereLight.current.intensity = THREE.MathUtils.damp(
 				sphereLight.current.intensity,
-				THREE.MathUtils.lerp(12, 20, flightTransition) * pipelineTransition,
+				THREE.MathUtils.lerp(12, 20, flightTransition) * emissionTransition,
 				6,
 				delta,
 			)
@@ -327,7 +340,9 @@ export function WobbleSphere({
 			</MotionPathControls>
 			<Trail
 				ref={trail}
-				width={performanceProfile.conserveResources ? 0.16 : 2.62}
+				width={mobileTrail
+					? PIPELINE_SPHERE_SCALE * 28.8
+					: performanceProfile.conserveResources ? 0.16 : 2.62}
 				length={performanceProfile.trailLength}
 				decay={1}
 				// Drei compares stride per frame, so this must stay near zero to let
@@ -335,10 +350,10 @@ export function WobbleSphere({
 				stride={0.0001}
 				interval={performanceProfile.trailInterval}
 				color="#d8c9ff"
-				attenuation={TRAIL_ATTENUATION}
+				attenuation={mobileTrail ? MOBILE_TRAIL_ATTENUATION : TRAIL_ATTENUATION}
 			>
 				<group ref={pathCarrierRef} position={[SPHERE_PATH.startX, SPHERE_PATH.startY, SPHERE_PATH.z]}>
-					<mesh ref={sphere}>
+					<mesh ref={sphere} renderOrder={0.5}>
 						<sphereGeometry
 							key={performanceProfile.sphereSegments}
 							args={[0.62, performanceProfile.sphereSegments, performanceProfile.sphereSegments]}
@@ -351,6 +366,13 @@ export function WobbleSphere({
 							depthTest
 							depthWrite
 							depthFunc={THREE.LessEqualDepth}
+							stencilWrite
+							stencilWriteMask={0xff}
+							stencilRef={1}
+							stencilFunc={THREE.AlwaysStencilFunc}
+							stencilFail={THREE.KeepStencilOp}
+							stencilZFail={THREE.KeepStencilOp}
+							stencilZPass={THREE.ReplaceStencilOp}
 							toneMapped={false}
 						/>
 						<pointLight ref={sphereLight} color="#eee6ff" intensity={0} distance={8.2} decay={2} />

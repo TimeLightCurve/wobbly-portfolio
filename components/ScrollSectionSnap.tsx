@@ -4,12 +4,23 @@ import { useLenis } from 'lenis/react'
 import { useEffect, type RefObject } from 'react'
 import * as THREE from 'three'
 
-const SNAP_IDLE_DELAY_MS = 210
-const SNAP_THRESHOLD_RATIO = 0.34
-const SNAP_THRESHOLD_MIN_PX = 110
-const SNAP_THRESHOLD_MAX_PX = 240
 const SNAP_MAX_SECTIONS_PER_GESTURE = 2
-const SNAP_SECOND_STEP_MULTIPLIER = 3.4
+
+const DESKTOP_SNAP = {
+	idleDelay: 190,
+	thresholdRatio: 0.29,
+	thresholdMin: 88,
+	thresholdMax: 200,
+	secondStepMultiplier: 3.8,
+}
+
+const MOBILE_SNAP = {
+	idleDelay: 150,
+	thresholdRatio: 0.18,
+	thresholdMin: 48,
+	thresholdMax: 118,
+	secondStepMultiplier: 4.2,
+}
 
 export function ScrollSectionSnap({
 	sectionRef,
@@ -22,6 +33,8 @@ export function ScrollSectionSnap({
 
 	useEffect(() => {
 		if (!lenis) return
+		const mobileInput = window.matchMedia('(pointer: coarse), (max-width: 640px)').matches
+		const snapConfig = mobileInput ? MOBILE_SNAP : DESKTOP_SNAP
 
 		let gestureActive = false
 		let gestureStartIndex = 0
@@ -132,13 +145,13 @@ export function ScrollSectionSnap({
 				}
 				const gap = Math.abs(targets[nextIndex] - targets[anchorIndex])
 				const baseThreshold = THREE.MathUtils.clamp(
-					gap * SNAP_THRESHOLD_RATIO,
-					SNAP_THRESHOLD_MIN_PX,
-					SNAP_THRESHOLD_MAX_PX,
+					gap * snapConfig.thresholdRatio,
+					snapConfig.thresholdMin,
+					snapConfig.thresholdMax,
 				)
 				const sectionsFromGestureStart = Math.abs(nextIndex - gestureStartIndex)
 				const threshold = sectionsFromGestureStart === 2
-					? baseThreshold * SNAP_SECOND_STEP_MULTIPLIER
+					? baseThreshold * snapConfig.secondStepMultiplier
 					: baseThreshold
 				if (Math.abs(accumulatedDelta) < threshold) break
 
@@ -152,7 +165,7 @@ export function ScrollSectionSnap({
 				wheelIdleTimer = setTimeout(() => {
 					wheelIdleTimer = null
 					finishGesture()
-				}, SNAP_IDLE_DELAY_MS)
+				}, snapConfig.idleDelay)
 			}
 		}
 

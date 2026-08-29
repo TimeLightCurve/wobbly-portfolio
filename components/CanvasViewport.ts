@@ -38,6 +38,7 @@ function createPerformanceProfile(result: Pick<TierResult, 'tier' | 'isMobile'>)
 	const tier = Math.round(Math.max(0, Math.min(3, result.tier)))
 	const isMobile = result.isMobile ?? false
 	const conserveResources = isMobile || tier <= 1
+	console.log('GPU tier detected:', { tier, isMobile, conserveResources })
 
 	if (tier <= 1) {
 		return { ...SAFE_PERFORMANCE_PROFILE, tier, isMobile }
@@ -63,7 +64,7 @@ function createPerformanceProfile(result: Pick<TierResult, 'tier' | 'isMobile'>)
 		tier,
 		isMobile,
 		conserveResources,
-		dpr: [1, isMobile ? 1.5 : 2],
+		dpr: [1, isMobile ? 1.5 : 3],
 		sphereSegments: isMobile ? 80 : 128,
 		trailLength: isMobile ? 5.8 : 8,
 		trailInterval: isMobile ? 2 : 1,

@@ -8,9 +8,10 @@ import * as THREE from 'three'
 import { useEvenIOSViewport, useScenePerformanceProfile } from './CanvasViewport'
 import { FlightStatements } from './FlightStatements'
 import { PipelineRoom } from './PipelineRoom'
-import { PointerAudioModulator } from './PointerAudio'
+import { PipelineNarrative } from './PipelineNarrative'
+// import { PointerAudioModulator } from './PointerAudio'
 import { getProjectColumnCount, Room } from './Room'
-import { SceneAudioPanel, useSceneAudio } from './SceneAudio'
+// import { SceneAudioPanel, useSceneAudio } from './SceneAudio'
 import { DESKTOP_FOV_MAX, ResponsiveCameraFov, SceneCamera } from './SceneCamera'
 import { PipelineAtmosphere, PipelineBloom } from './SceneEffects'
 import {
@@ -30,7 +31,7 @@ export function ThreeCanvas() {
 	const { scrollYProgress } = useScroll()
 	const performanceProfile = useScenePerformanceProfile()
 	const iosViewport = useEvenIOSViewport()
-	const audio = useSceneAudio(performanceProfile.conserveResources)
+	// const audio = useSceneAudio(performanceProfile.conserveResources)
 	const anchorStore = useMemo(() => new ColumnAnchorStore(), [])
 	const sectionRef = useRef<HTMLElement>(null)
 	const spherePathCarrier = useRef<THREE.Group>(null!)
@@ -38,6 +39,8 @@ export function ThreeCanvas() {
 	const route = useMemo(() => createSceneRoute(columnCount), [columnCount])
 	const canvasGl = useMemo(() => ({
 		antialias: false,
+		stencil: true,
+		transmissionResolutionScale: performanceProfile.conserveResources ? 0.2 : 0.4,
 		powerPreference: performanceProfile.conserveResources
 			? 'default' as const
 			: 'high-performance' as const,
@@ -81,11 +84,11 @@ export function ThreeCanvas() {
 				>
 					<ResponsiveCameraFov scrollYProgress={scrollYProgress} route={route} />
 					<PipelineAtmosphere scrollYProgress={scrollYProgress} route={route} />
-					<PointerAudioModulator
+					{/* <PointerAudioModulator
 						rigRef={audio.rigRef}
 						settings={audio.settings}
 						enabled={audio.enabled}
-					/>
+					/> */}
 					<Suspense fallback={null}>
 						{performanceProfile.useEnvironment ? (
 							<Environment files="/venice_sunset_1k.hdr" background={false} environmentIntensity={0.5} />
@@ -99,8 +102,10 @@ export function ThreeCanvas() {
 							position={[0, 0, 0]}
 							rotation={[0, -Math.PI / 2, 0]}
 							onAnchorChange={handleAnchorChange}
-							onColumnMotion={audio.handleColumnMotion}
+							// onColumnMotion={audio.handleColumnMotion}
 							reducedPerformance={performanceProfile.conserveResources}
+							pathCarrierRef={spherePathCarrier}
+							hideY={route.pipelineInletY + 0.04}
 						/>
 						<PipelineRoom
 							positionX={route.pipelinePositionX}
@@ -108,6 +113,12 @@ export function ThreeCanvas() {
 							positionZ={route.pipelinePositionZ}
 							revealProgress={route.pipelineRevealProgress}
 							scrollYProgress={scrollYProgress}
+						/>
+						<PipelineNarrative
+							scrollYProgress={scrollYProgress}
+							route={route}
+							reducedPerformance={performanceProfile.conserveResources}
+							mobileLayout={performanceProfile.isMobile}
 						/>
 						<WobbleSphere
 							scrollYProgress={scrollYProgress}
@@ -131,12 +142,12 @@ export function ThreeCanvas() {
 						pathCarrierRef={spherePathCarrier}
 					/>
 					<PipelineBloom
-						scrollYProgress={scrollYProgress}
 						route={route}
 						performanceProfile={performanceProfile}
+						pathCarrierRef={spherePathCarrier}
 					/>
 				</Canvas>
-				<SceneAudioPanel store={audio.controlStore} enabled={audio.enabled} onToggle={audio.toggle} />
+				{/* <SceneAudioPanel store={audio.controlStore} enabled={audio.enabled} onToggle={audio.toggle} /> */}
 			</div>
 		</section>
 	)

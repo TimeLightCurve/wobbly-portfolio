@@ -5,10 +5,11 @@ Command: npx gltfjsx@6.5.3 room.glb -t -K
 
 import { useGLTF } from '@react-three/drei'
 import { type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
-import { JSX, useMemo, useRef } from 'react'
+import { JSX, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
 import { GLTF } from 'three-stdlib'
 import { InkEdges, toInkEdges } from './InkEdges'
+import { createLiquidGlassMaterial } from './LiquidGlassMaterial'
 import { ProjectPanels } from './ProjectPanels'
 import { projects, type Project } from './projects'
 
@@ -71,11 +72,13 @@ type ColumnSectionProps = {
   columnIndex: number
   sectionProjects: Project[]
 	onAnchorChange: (columnIndex: number, x: number, z: number) => void
-	onColumnMotion: (velocity: number, direction: number) => void
+	// onColumnMotion: (velocity: number, direction: number) => void
 	reducedPerformance: boolean
+	glassMaterial: THREE.MeshPhysicalMaterial
+	sceneVisible: boolean
 }
 
-function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects, onAnchorChange, onColumnMotion, reducedPerformance }: ColumnSectionProps) {
+function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects, onAnchorChange, /* onColumnMotion, */ reducedPerformance, glassMaterial, sceneVisible }: ColumnSectionProps) {
   const viewportWidth = useThree((state) => state.size.width)
   const initialRestingRotation = viewportWidth <= MOBILE_ROTATION_BREAKPOINT ? getMobileProjectRotation(0) : 0
   const columns = useRef<THREE.Group>(null)
@@ -182,10 +185,10 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
       const direction = Math.sign(distance)
       const turns = Math.abs(distance) >= HALF_TURN_DISTANCE || Math.abs(velocity) >= HALF_TURN_VELOCITY ? 2 : 1
       targetRotation.current = dragOriginRotation.current + direction * turns * QUARTER_TURN
-		const distanceStrength = THREE.MathUtils.clamp(Math.abs(distance) / HALF_TURN_DISTANCE, 0, 1)
-		const velocityStrength = 1 - Math.exp(-Math.abs(velocity) * 1.5)
-		const rotationStrength = THREE.MathUtils.clamp(distanceStrength * 0.7 + velocityStrength * 0.3, 0, 1)
-		onColumnMotion(rotationStrength, direction)
+		// const distanceStrength = THREE.MathUtils.clamp(Math.abs(distance) / HALF_TURN_DISTANCE, 0, 1)
+		// const velocityStrength = 1 - Math.exp(-Math.abs(velocity) * 1.5)
+		// const rotationStrength = THREE.MathUtils.clamp(distanceStrength * 0.7 + velocityStrength * 0.3, 0, 1)
+		// onColumnMotion(rotationStrength, direction)
     } else {
       targetRotation.current = dragOriginRotation.current
     }
@@ -205,7 +208,7 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
   }
 
   useFrame((_, delta) => {
-    if (!columns.current) return
+    if (!sceneVisible || !columns.current) return
 
     const baseRotation = isDragging.current ? dragPreviewRotation.current : targetRotation.current
     const restingRotation = viewportWidth <= MOBILE_ROTATION_BREAKPOINT
@@ -253,23 +256,23 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
       </mesh>
       <group ref={columns} position={[COLUMN_PIVOT_X, centerY, COLUMN_PIVOT_Z]} rotation={[0, initialRestingRotation, 0]}>
         <group ref={columnCenter} position={[COLUMN_MESH_OFFSET_X, COLUMN_MESH_OFFSET_Y, COLUMN_MESH_OFFSET_Z]}>
-          <mesh geometry={geometry} castShadow receiveShadow scale={[1, COLUMN_MESH_SCALE_Y, 1]}>
-            <meshStandardMaterial color="#27282b"  />
-          </mesh>
+          <mesh geometry={geometry} material={glassMaterial} castShadow receiveShadow scale={[1, COLUMN_MESH_SCALE_Y, 1]} />
           <InkEdges edges={edges} scale={[1, COLUMN_MESH_SCALE_Y, 1]} />
-          <ProjectPanels
-            geometry={geometry}
-            projects={sectionProjects}
-            scaleY={COLUMN_MESH_SCALE_Y}
-            reducedPerformance={reducedPerformance}
-          />
+          {sceneVisible ? (
+            <ProjectPanels
+              geometry={geometry}
+              projects={sectionProjects}
+              scaleY={COLUMN_MESH_SCALE_Y}
+              reducedPerformance={reducedPerformance}
+            />
+          ) : null}
         </group>
       </group>
     </>
   )
 }
 
-function ColumnSystem({ geometry, edges, onAnchorChange, onColumnMotion, reducedPerformance }: Pick<ColumnSectionProps, 'geometry' | 'edges' | 'onAnchorChange' | 'onColumnMotion' | 'reducedPerformance'>) {
+function ColumnSystem({ geometry, edges, onAnchorChange, /* onColumnMotion, */ reducedPerformance, glassMaterial, sceneVisible }: Pick<ColumnSectionProps, 'geometry' | 'edges' | 'onAnchorChange' | 'reducedPerformance' | 'glassMaterial' | 'sceneVisible'>) {
   const projectSections = useMemo(() => Array.from(
     { length: getProjectColumnCount(projects.length) },
     (_, columnIndex) => projects.slice(
@@ -287,29 +290,50 @@ function ColumnSystem({ geometry, edges, onAnchorChange, onColumnMotion, reduced
       columnIndex={columnIndex}
       sectionProjects={sectionProjects}
       onAnchorChange={onAnchorChange}
-      onColumnMotion={onColumnMotion}
+      // onColumnMotion={onColumnMotion}
       reducedPerformance={reducedPerformance}
+      glassMaterial={glassMaterial}
+      sceneVisible={sceneVisible}
     />
   ))
 }
 
-export function Room({ onAnchorChange, onColumnMotion, reducedPerformance, ...props }: JSX.IntrinsicElements['group'] & {
+export function Room({ onAnchorChange, /* onColumnMotion, */ reducedPerformance, pathCarrierRef, hideY, ...props }: JSX.IntrinsicElements['group'] & {
 	onAnchorChange: (columnIndex: number, x: number, z: number) => void
-	onColumnMotion: (velocity: number, direction: number) => void
+	// onColumnMotion: (velocity: number, direction: number) => void
 	reducedPerformance: boolean
+	pathCarrierRef: RefObject<THREE.Group>
+	hideY: number
 }) {
-  const { nodes, materials } = useGLTF('/room2.glb') as unknown as GLTFResult
+  const { nodes } = useGLTF('/room2.glb') as unknown as GLTFResult
+  const [sceneVisible, setSceneVisible] = useState(true)
+  const sceneVisibleRef = useRef(true)
+  const carrierPosition = useRef(new THREE.Vector3())
 
   const roomEdges = useMemo(() => toInkEdges(nodes.room.geometry), [nodes.room.geometry])
   const columnsEdges = useMemo(() => toInkEdges(nodes.columns.geometry), [nodes.columns.geometry])
+  const liquidGlass = useMemo(() => createLiquidGlassMaterial(reducedPerformance), [reducedPerformance])
+  const glassMaterial = liquidGlass.material
+  useFrame(() => {
+    if (!pathCarrierRef.current) return
+    pathCarrierRef.current.getWorldPosition(carrierPosition.current)
+    const nextVisible = carrierPosition.current.y > hideY
+    if (nextVisible === sceneVisibleRef.current) return
+    sceneVisibleRef.current = nextVisible
+    setSceneVisible(nextVisible)
+  })
+
+  useEffect(() => () => liquidGlass.material.dispose(), [liquidGlass])
+  useEffect(() => () => {
+    roomEdges.dispose()
+    columnsEdges.dispose()
+  }, [columnsEdges, roomEdges])
 
   return (
-    <group {...props} dispose={null}>
+    <group {...props} visible={sceneVisible} dispose={null}>
       <group>
         <group >
-          <mesh geometry={nodes.room.geometry} material={materials.Cardboard} castShadow receiveShadow scale={[1.2, 1.3, 1.2]}>
-            <meshStandardMaterial color="#202020"  />
-          </mesh>
+          <mesh geometry={nodes.room.geometry} material={glassMaterial} castShadow receiveShadow scale={[1.2, 1.3, 1.2]} />
           <InkEdges edges={roomEdges} scale={[1.2, 1.3, 1.2]} />
         </group>
 		<group position={[0, COLUMN_SYSTEM_OFFSET_Y, 0]}>
@@ -317,8 +341,10 @@ export function Room({ onAnchorChange, onColumnMotion, reducedPerformance, ...pr
             geometry={nodes.columns.geometry}
             edges={columnsEdges}
             onAnchorChange={onAnchorChange}
-            onColumnMotion={onColumnMotion}
+            // onColumnMotion={onColumnMotion}
             reducedPerformance={reducedPerformance}
+            glassMaterial={glassMaterial}
+            sceneVisible={sceneVisible}
           />
         </group>
       </group>
@@ -326,4 +352,4 @@ export function Room({ onAnchorChange, onColumnMotion, reducedPerformance, ...pr
   )
 }
 
-useGLTF.preload('/room.glb')
+useGLTF.preload('/room2.glb')

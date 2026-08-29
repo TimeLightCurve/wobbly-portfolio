@@ -3,7 +3,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import { type MotionValue } from 'motion/react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
 import { type ScenePerformanceProfile } from './CanvasViewport'
 import { type SceneRoute } from './SceneRoute'
@@ -49,26 +49,26 @@ export function PipelineAtmosphere({
 }
 
 export function PipelineBloom({
-	scrollYProgress,
 	route,
 	performanceProfile,
+	pathCarrierRef,
 }: {
-	scrollYProgress: MotionValue<number>
 	route: SceneRoute
 	performanceProfile: ScenePerformanceProfile
+	pathCarrierRef: RefObject<THREE.Group>
 }) {
 	const [active, setActive] = useState(false)
 	const activeRef = useRef(false)
+	const carrierPosition = useRef(new THREE.Vector3())
 
-	useEffect(() => {
-		if (!performanceProfile.bloomEnabled) return
-		return scrollYProgress.on('change', (progress) => {
-			const shouldBeActive = progress >= route.lastColumnProgress - 0.015
-			if (shouldBeActive === activeRef.current) return
-			activeRef.current = shouldBeActive
-			setActive(shouldBeActive)
-		})
-	}, [performanceProfile.bloomEnabled, route.lastColumnProgress, scrollYProgress])
+	useFrame(() => {
+		if (!performanceProfile.bloomEnabled || !pathCarrierRef.current) return
+		pathCarrierRef.current.getWorldPosition(carrierPosition.current)
+		const shouldBeActive = carrierPosition.current.y <= route.lastColumnExitY
+		if (shouldBeActive === activeRef.current) return
+		activeRef.current = shouldBeActive
+		setActive(shouldBeActive)
+	})
 
 	if (!performanceProfile.bloomEnabled || !active) return null
 

@@ -112,9 +112,13 @@ export function InkEdges({
         depthWrite={false}
         depthTest
         depthFunc={THREE.LessEqualDepth}
-        polygonOffset
-        polygonOffsetFactor={-1}
-        polygonOffsetUnits={-1}
+        stencilWrite
+        stencilWriteMask={0x00}
+        stencilRef={1}
+        stencilFunc={THREE.NotEqualStencilFunc}
+        stencilFail={THREE.KeepStencilOp}
+        stencilZFail={THREE.KeepStencilOp}
+        stencilZPass={THREE.KeepStencilOp}
         side={THREE.DoubleSide}
         toneMapped
       />

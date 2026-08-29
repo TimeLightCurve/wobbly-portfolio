@@ -122,7 +122,7 @@ const ProjectFace = memo(function ProjectFace({
 									className="object-cover"
 								/>
 							</div>
-						<div className=' w-[98%] h-[98%] self-center place-self-center bg-[#27282b]  '>
+						<div className=' w-[98%] h-[98%] self-center place-self-center   '>
 
 						
 							<div className="project-panel__info self-center place-self-center">
