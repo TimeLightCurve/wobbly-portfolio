@@ -89,7 +89,7 @@ export function ThreeCanvas() {
 						settings={audio.settings}
 						enabled={audio.enabled}
 					/> */}
-					{/* <color attach="background" args={['#151515']} /> */}
+					<color attach="background" args={['#171828']} />
 					<Suspense fallback={null}>
 						{performanceProfile.useEnvironment ? (
 							<Environment preset={'dawn'} background={false} environmentIntensity={0.8} />

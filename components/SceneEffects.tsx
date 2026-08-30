@@ -16,7 +16,7 @@ export function PipelineAtmosphere({
 	route: SceneRoute
 }) {
 	const getThreeState = useThree((state) => state.get)
-	const regularBackground = useMemo(() => new THREE.Color('#27282b'), [])
+	const regularBackground = useMemo(() => new THREE.Color('#171828'), [])
 	const pipelineBackground = useMemo(() => new THREE.Color('#010102'), [])
 	const currentBackground = useMemo(() => new THREE.Color(), [])
 	const previousDarkness = useRef(Number.NaN)
@@ -35,9 +35,10 @@ export function PipelineAtmosphere({
 	useFrame(({ scene }) => {
 		const darkness = THREE.MathUtils.smoothstep(
 			scrollYProgress.get(),
-			route.lastColumnProgress,
-			route.pipelineRevealProgress,
+			route.lastColumnProgress + 0.05,
+			route.pipelineRevealProgress + 0.05,
 		)
+		
 		if (Math.abs(darkness - previousDarkness.current) < 0.0001) return
 		previousDarkness.current = darkness
 		currentBackground.lerpColors(regularBackground, pipelineBackground, darkness)
