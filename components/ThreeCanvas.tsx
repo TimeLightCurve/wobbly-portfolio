@@ -96,10 +96,10 @@ export function ThreeCanvas() {
 							// <></>
 						) : (
 							<>
-									<Environment preset={'dawn'} background={false} environmentIntensity={0.8} />
+									{/* <Environment preset={'dawn'} background={false} environmentIntensity={0.8} /> */}
 
-								{/* <ambientLight intensity={0.42} />
-								<directionalLight position={FALLBACK_LIGHT_POSITION} intensity={0.72} color="#ded8e8" /> */}
+								<ambientLight intensity={0.42} />
+								<directionalLight position={FALLBACK_LIGHT_POSITION} intensity={0.72} color="#ded8e8" />
 							</>
 						)}
 						<Room
