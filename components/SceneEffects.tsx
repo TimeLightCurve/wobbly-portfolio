@@ -58,11 +58,28 @@ export function PipelineBloom({
 	pathCarrierRef: RefObject<THREE.Group>
 }) {
 	const [active, setActive] = useState(false)
+	const [warmingUp, setWarmingUp] = useState(false)
 	const activeRef = useRef(false)
+	const bloomWasEnabled = useRef(false)
+	const warmupFrames = useRef(0)
 	const carrierPosition = useRef(new THREE.Vector3())
 
 	useFrame(() => {
-		if (!performanceProfile.bloomEnabled || !pathCarrierRef.current) return
+		if (!performanceProfile.bloomEnabled) {
+			bloomWasEnabled.current = false
+			return
+		}
+
+		if (!bloomWasEnabled.current) {
+			bloomWasEnabled.current = true
+			warmupFrames.current = 2
+			setWarmingUp(true)
+		} else if (warmupFrames.current > 0) {
+			warmupFrames.current -= 1
+			if (warmupFrames.current === 0) setWarmingUp(false)
+		}
+
+		if (!pathCarrierRef.current) return
 		pathCarrierRef.current.getWorldPosition(carrierPosition.current)
 		const shouldBeActive = carrierPosition.current.y <= route.lastColumnExitY
 		if (shouldBeActive === activeRef.current) return
@@ -70,11 +87,17 @@ export function PipelineBloom({
 		setActive(shouldBeActive)
 	})
 
-	if (!performanceProfile.bloomEnabled || !active) return null
+	if (!performanceProfile.bloomEnabled) return null
 
 	return (
-		<EffectComposer multisampling={0} enableNormalPass={false} depthBuffer={false}>
+		<EffectComposer
+			enabled={warmingUp || active}
+			multisampling={0}
+			enableNormalPass={false}
+			depthBuffer={false}
+		>
 			<Bloom
+				opacity={active ? 1 : 0}
 				intensity={0.8}
 				luminanceThreshold={0.2}
 				luminanceSmoothing={0.18}

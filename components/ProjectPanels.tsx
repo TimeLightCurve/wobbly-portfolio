@@ -16,6 +16,7 @@ type ProjectFaceProps = {
 	height: number
 	channelWidth: number
 	isVisible: boolean
+	sceneVisible: boolean
 	reducedPerformance: boolean
 	rasterDensity: 1 | 2
 	faceRef: RefCallback<THREE.Group>
@@ -60,10 +61,12 @@ const ProjectFace = memo(function ProjectFace({
 	height,
 	channelWidth,
 	isVisible,
+	sceneVisible,
 	reducedPerformance,
 	rasterDensity,
 	faceRef,
 }: ProjectFaceProps) {
+	const shouldShow = sceneVisible && isVisible
 	const mobileRaster = rasterDensity === 1
 	const htmlDistanceFactor = 1 / rasterDensity
 	const cssPixelsPerWorldUnit = BASE_CSS_PIXELS_PER_WORLD_UNIT / htmlDistanceFactor
@@ -102,13 +105,13 @@ const ProjectFace = memo(function ProjectFace({
 							data-layout={layout}
 							style={{
 								columnGap: `${panelSize.gap}px`,
-								opacity: isVisible ? 1 : 0,
+								opacity: shouldShow ? 1 : 0,
 								transitionProperty: 'opacity',
-								transitionDelay: isVisible ? `${mobileRaster ? MOBILE_FACE_SHOW_DELAY : FACE_SHOW_DELAY}s` : '0s',
+								transitionDelay: shouldShow ? `${mobileRaster ? MOBILE_FACE_SHOW_DELAY : FACE_SHOW_DELAY}s` : '0s',
 								transitionDuration: `${mobileRaster
-									? (isVisible ? MOBILE_FACE_SHOW_DURATION : MOBILE_FACE_HIDE_DURATION)
-									: (isVisible ? FACE_SHOW_DURATION : FACE_HIDE_DURATION)}s`,
-								transitionTimingFunction: isVisible ? 'ease-out' : 'linear',
+									? (shouldShow ? MOBILE_FACE_SHOW_DURATION : MOBILE_FACE_HIDE_DURATION)
+									: (shouldShow ? FACE_SHOW_DURATION : FACE_HIDE_DURATION)}s`,
+								transitionTimingFunction: shouldShow ? 'ease-out' : 'linear',
 								backfaceVisibility: 'hidden',
 								WebkitBackfaceVisibility: 'hidden',
 							}}
@@ -160,11 +163,13 @@ export function ProjectPanels({
 	projects,
 	scaleY,
 	reducedPerformance,
+	sceneVisible,
 }: {
 	geometry: THREE.BufferGeometry
 	projects: Project[]
 	scaleY: number
 	reducedPerformance: boolean
+	sceneVisible: boolean
 }) {
 	const viewportWidth = useThree((state) => state.size.width)
 	const rasterDensity: 1 | 2 = reducedPerformance || viewportWidth <= MOBILE_RASTER_BREAKPOINT ? 1 : 2
@@ -228,6 +233,7 @@ export function ProjectPanels({
 	}, [geometry, scaleY])
 
 	useFrame(({ camera }, delta) => {
+		if (!sceneVisible) return
 		visibilityAccumulator.current += delta
 		const updateInterval = reducedPerformance ? 1 / 20 : 1 / 45
 		if (visibilityAccumulator.current < updateInterval) return
@@ -265,6 +271,7 @@ export function ProjectPanels({
 						project={project}
 						layout={PROJECT_LAYOUTS[index] ?? 'balanced'}
 						isVisible={visibleFaces[index]}
+						sceneVisible={sceneVisible}
 						reducedPerformance={reducedPerformance}
 						rasterDensity={rasterDensity}
 						faceRef={faceRefCallbacks[index]}

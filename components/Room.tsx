@@ -8,7 +8,7 @@ import { type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import { JSX, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
 import { GLTF } from 'three-stdlib'
-import { InkEdges, toInkEdges } from './InkEdges'
+// import { InkEdges, toInkEdges } from './InkEdges'
 import { createLiquidGlassMaterial } from './LiquidGlassMaterial'
 import { ProjectPanels } from './ProjectPanels'
 import { projects, type Project } from './projects'
@@ -67,7 +67,7 @@ function isTouchEvent(event: ThreeEvent<PointerEvent>) {
 
 type ColumnSectionProps = {
   geometry: THREE.BufferGeometry
-  edges: THREE.EdgesGeometry
+  // edges: THREE.EdgesGeometry
   centerY: number
   columnIndex: number
   sectionProjects: Project[]
@@ -78,7 +78,7 @@ type ColumnSectionProps = {
 	sceneVisible: boolean
 }
 
-function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects, onAnchorChange, /* onColumnMotion, */ reducedPerformance, glassMaterial, sceneVisible }: ColumnSectionProps) {
+function ColumnSection({ geometry, /* edges */ centerY, columnIndex, sectionProjects, onAnchorChange, /* onColumnMotion, */ reducedPerformance, glassMaterial, sceneVisible }: ColumnSectionProps) {
   const viewportWidth = useThree((state) => state.size.width)
   const initialRestingRotation = viewportWidth <= MOBILE_ROTATION_BREAKPOINT ? getMobileProjectRotation(0) : 0
   const columns = useRef<THREE.Group>(null)
@@ -257,22 +257,23 @@ function ColumnSection({ geometry, edges, centerY, columnIndex, sectionProjects,
       <group ref={columns} position={[COLUMN_PIVOT_X, centerY, COLUMN_PIVOT_Z]} rotation={[0, initialRestingRotation, 0]}>
         <group ref={columnCenter} position={[COLUMN_MESH_OFFSET_X, COLUMN_MESH_OFFSET_Y, COLUMN_MESH_OFFSET_Z]}>
           <mesh geometry={geometry} material={glassMaterial} castShadow receiveShadow scale={[1, COLUMN_MESH_SCALE_Y, 1]} />
-          <InkEdges edges={edges} scale={[1, COLUMN_MESH_SCALE_Y, 1]} />
-          {sceneVisible ? (
+          {/* <InkEdges edges={edges} scale={[1, COLUMN_MESH_SCALE_Y, 1]} /> */}
+          <group visible={sceneVisible}>
             <ProjectPanels
               geometry={geometry}
               projects={sectionProjects}
               scaleY={COLUMN_MESH_SCALE_Y}
               reducedPerformance={reducedPerformance}
+              sceneVisible={sceneVisible}
             />
-          ) : null}
+          </group>
         </group>
       </group>
     </>
   )
 }
 
-function ColumnSystem({ geometry, edges, onAnchorChange, /* onColumnMotion, */ reducedPerformance, glassMaterial, sceneVisible }: Pick<ColumnSectionProps, 'geometry' | 'edges' | 'onAnchorChange' | 'reducedPerformance' | 'glassMaterial' | 'sceneVisible'>) {
+function ColumnSystem({ geometry, onAnchorChange, /* onColumnMotion, edges, */ reducedPerformance, glassMaterial, sceneVisible }: Pick<ColumnSectionProps, 'geometry' | /* 'edges' | */ 'onAnchorChange' | 'reducedPerformance' | 'glassMaterial' | 'sceneVisible'>) {
   const projectSections = useMemo(() => Array.from(
     { length: getProjectColumnCount(projects.length) },
     (_, columnIndex) => projects.slice(
@@ -285,7 +286,7 @@ function ColumnSystem({ geometry, edges, onAnchorChange, /* onColumnMotion, */ r
     <ColumnSection
       key={columnIndex}
       geometry={geometry}
-      edges={edges}
+      // edges={edges}
       centerY={FIRST_COLUMN_CENTER_Y - columnIndex * COLUMN_SPACING}
       columnIndex={columnIndex}
       sectionProjects={sectionProjects}
@@ -305,13 +306,13 @@ export function Room({ onAnchorChange, /* onColumnMotion, */ reducedPerformance,
 	pathCarrierRef: RefObject<THREE.Group>
 	hideY: number
 }) {
-  const { nodes } = useGLTF('/room2.glb') as unknown as GLTFResult
+  const { nodes } = useGLTF('/room4.glb') as unknown as GLTFResult
   const [sceneVisible, setSceneVisible] = useState(true)
   const sceneVisibleRef = useRef(true)
   const carrierPosition = useRef(new THREE.Vector3())
 
-  const roomEdges = useMemo(() => toInkEdges(nodes.room.geometry), [nodes.room.geometry])
-  const columnsEdges = useMemo(() => toInkEdges(nodes.columns.geometry), [nodes.columns.geometry])
+  // const roomEdges = useMemo(() => toInkEdges(nodes.room.geometry), [nodes.room.geometry])
+  // const columnsEdges = useMemo(() => toInkEdges(nodes.columns.geometry), [nodes.columns.geometry])
   const liquidGlass = useMemo(() => createLiquidGlassMaterial(reducedPerformance), [reducedPerformance])
   const glassMaterial = liquidGlass.material
   useFrame(() => {
@@ -324,22 +325,22 @@ export function Room({ onAnchorChange, /* onColumnMotion, */ reducedPerformance,
   })
 
   useEffect(() => () => liquidGlass.material.dispose(), [liquidGlass])
-  useEffect(() => () => {
-    roomEdges.dispose()
-    columnsEdges.dispose()
-  }, [columnsEdges, roomEdges])
+  // useEffect(() => () => {
+  //   roomEdges.dispose()
+  //   // columnsEdges.dispose()
+  // }, [/* columnsEdges, */ roomEdges])
 
   return (
     <group {...props} visible={sceneVisible} dispose={null}>
       <group>
         <group >
           <mesh geometry={nodes.room.geometry} material={glassMaterial} castShadow receiveShadow scale={[1.2, 1.3, 1.2]} />
-          <InkEdges edges={roomEdges} scale={[1.2, 1.3, 1.2]} />
+          {/* <InkEdges edges={roomEdges} scale={[1.2, 1.3, 1.2]} /> */}
         </group>
 		<group position={[0, COLUMN_SYSTEM_OFFSET_Y, 0]}>
           <ColumnSystem
             geometry={nodes.columns.geometry}
-            edges={columnsEdges}
+            // edges={columnsEdges}
             onAnchorChange={onAnchorChange}
             // onColumnMotion={onColumnMotion}
             reducedPerformance={reducedPerformance}
@@ -352,4 +353,4 @@ export function Room({ onAnchorChange, /* onColumnMotion, */ reducedPerformance,
   )
 }
 
-useGLTF.preload('/room2.glb')
+useGLTF.preload('/room4.glb')

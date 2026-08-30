@@ -96,11 +96,13 @@ body {
   position: relative;
   align-self: center;
   justify-self: center;
-  width: 99%;
-  height: 99%;
+  width: 80%;
+  height: 90%;
   min-height: 0;
   overflow: hidden;
   background: #000;
+  border-radius: 20px;
+  opacity: 70%;
 }
 
 .project-panel__image img {
@@ -180,8 +182,8 @@ body {
 
 /* Face 2: preserve both physical walls, fill the image wall, and narrow the info block. */
 .project-panel[data-layout="image-dominant"] .project-panel__image {
-  width: 99%;
-  height: 99%;
+  width: 80%;
+  height: 90%;
 }
 
 .project-panel[data-layout="image-dominant"] .project-panel__info {
@@ -234,11 +236,11 @@ body {
 
 /* Face 3: each block occupies 80% of its wall, about 40% of the complete face. */
 .project-panel[data-layout="compact-equal"] .project-panel__image{
-  width: 50%;
-  height: 99%;
+  width: 60%;
+  height: 90%;
   justify-self: end;
-  align-self: flex-start;
-  margin-right: 2px;
+  align-self: center;
+  margin-right: 80px;
 }
 .project-panel[data-layout="compact-equal"] .project-panel__info {
   width: 80%;
@@ -291,14 +293,14 @@ body {
 
 /* Face 4: two compact cards anchored to the bottom-right of their physical walls. */
 .project-panel[data-layout="portrait"] .project-panel__image {
-  align-self: start;
+  align-self: center;
   justify-self: end;
   width: auto;
-  height: 99%;
-  width: 60%;
+  height: 90%;
+  width: 70%;
   /* aspect-ratio: 9 / 16; */
   /* margin-bottom: 0px; */
-  margin-right: 8px;
+  margin-right: 80px;
   margin-top: 10px;
 }
 
