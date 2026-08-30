@@ -43,14 +43,14 @@ export function createLiquidGlassMaterial(reducedPerformance: boolean): LiquidGl
 		uLiquidTint: { value: new THREE.Color('#c8d3ef') },
 	}
 	const material = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(reducedPerformance ? '#343945' : '#8d9bb4'),
+    color: new THREE.Color(reducedPerformance ? '#8d9bb4' : '#8d9bb4'),
     metalness: 0,
-    roughness: reducedPerformance ? 0.22 : 0.24,
-    transmission: reducedPerformance ? 0.7 : 0.82,
-    thickness: reducedPerformance ? 0.7 : 0.9,
+    roughness: reducedPerformance ? 0.22 : 0.14,
+    transmission: reducedPerformance ? 0.7 : 0.99,
+    thickness: reducedPerformance ? 0.9 : 0.99,
     ior: 1.16,
-    clearcoat: reducedPerformance ? 0.46 : 0.48,
-    clearcoatRoughness: reducedPerformance ? 0.5 : 0.2,
+    clearcoat: reducedPerformance ? 0.46 : 0.88,
+    clearcoatRoughness: reducedPerformance ? 0.5 : 0.4,
     specularIntensity: reducedPerformance ? 0.58 : 0.72,
     specularColor: new THREE.Color('#dce4f5'),
     envMapIntensity: reducedPerformance ? 0.72 : 0.78,
@@ -58,8 +58,8 @@ export function createLiquidGlassMaterial(reducedPerformance: boolean): LiquidGl
     // visible through the shell in front of them. Transmission alone samples
     // Three's opaque transmission buffer and cannot contain other glass meshes.
     transparent: true,
-    opacity: reducedPerformance ? 0.9 : 0.9,
-    depthWrite: false,
+    opacity: reducedPerformance ? 0.8 : 0.9,
+    depthWrite: true,
   })
 
 	material.onBeforeCompile = (shader) => {

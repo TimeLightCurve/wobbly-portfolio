@@ -89,13 +89,17 @@ export function ThreeCanvas() {
 						settings={audio.settings}
 						enabled={audio.enabled}
 					/> */}
+					{/* <color attach="background" args={['#151515']} /> */}
 					<Suspense fallback={null}>
 						{performanceProfile.useEnvironment ? (
-							<Environment files="/venice_sunset_1k.hdr" background={false} environmentIntensity={0.5} />
+							<Environment preset={'dawn'} background={false} environmentIntensity={0.8} />
+							// <></>
 						) : (
 							<>
-								<ambientLight intensity={0.42} />
-								<directionalLight position={FALLBACK_LIGHT_POSITION} intensity={0.72} color="#ded8e8" />
+									<Environment preset={'dawn'} background={false} environmentIntensity={0.8} />
+
+								{/* <ambientLight intensity={0.42} />
+								<directionalLight position={FALLBACK_LIGHT_POSITION} intensity={0.72} color="#ded8e8" /> */}
 							</>
 						)}
 						<Room
