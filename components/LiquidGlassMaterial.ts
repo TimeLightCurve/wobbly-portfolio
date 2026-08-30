@@ -45,20 +45,20 @@ export function createLiquidGlassMaterial(reducedPerformance: boolean): LiquidGl
 	const material = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(reducedPerformance ? '#343945' : '#8d9bb4'),
     metalness: 0,
-    roughness: reducedPerformance ? 0.62 : 0.24,
-    transmission: reducedPerformance ? 0.5 : 0.82,
-    thickness: reducedPerformance ? 0.3 : 0.9,
+    roughness: reducedPerformance ? 0.22 : 0.24,
+    transmission: reducedPerformance ? 0.7 : 0.82,
+    thickness: reducedPerformance ? 0.7 : 0.9,
     ior: 1.16,
-    clearcoat: reducedPerformance ? 0.16 : 0.48,
+    clearcoat: reducedPerformance ? 0.46 : 0.48,
     clearcoatRoughness: reducedPerformance ? 0.5 : 0.2,
-    specularIntensity: reducedPerformance ? 0.38 : 0.72,
+    specularIntensity: reducedPerformance ? 0.58 : 0.72,
     specularColor: new THREE.Color('#dce4f5'),
-    envMapIntensity: reducedPerformance ? 0.32 : 0.78,
+    envMapIntensity: reducedPerformance ? 0.72 : 0.78,
     // Keep the surface alpha-blended so disconnected glass shells can remain
     // visible through the shell in front of them. Transmission alone samples
     // Three's opaque transmission buffer and cannot contain other glass meshes.
     transparent: true,
-    opacity: reducedPerformance ? 0.3 : 0.9,
+    opacity: reducedPerformance ? 0.9 : 0.9,
     depthWrite: false,
   })
 
