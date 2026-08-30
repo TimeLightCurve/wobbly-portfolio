@@ -30,7 +30,7 @@ const SAFE_PERFORMANCE_PROFILE: ScenePerformanceProfile = {
 	bloomEnabled: false,
 	bloomLevels: 2,
 	bloomResolutionScale: 0.16,
-	useEnvironment: false,
+	useEnvironment: true,
 }
 const GPU_TIER_CACHE_KEY = 'portfolio-gpu-tier-v1'
 
