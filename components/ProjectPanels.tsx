@@ -3,7 +3,7 @@
 import { Html } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import Image from 'next/image'
-import { memo, useMemo, useRef, useState, type RefCallback } from 'react'
+import { memo, useMemo, useRef, useState, useSyncExternalStore, type RefCallback } from 'react'
 import * as THREE from 'three'
 import type { Project } from './projects'
 
@@ -15,6 +15,7 @@ type ProjectFaceProps = {
 	width: number
 	height: number
 	channelWidth: number
+	htmlYOffset: number
 	isVisible: boolean
 	sceneVisible: boolean
 	reducedPerformance: boolean
@@ -51,6 +52,24 @@ const FACE_SURFACE_GAP = 0.006
 
 const BASE_CSS_PIXELS_PER_WORLD_UNIT = 400
 const MOBILE_RASTER_BREAKPOINT = 640
+// WebKit places Drei's transformed DOM a little below its WebGL anchor.
+// Keep this correction in model space so it stays attached to every rotating face.
+const IOS_HTML_Y_OFFSET = 0.145
+
+function getIsIOSWebKitSnapshot() {
+	if (typeof navigator === 'undefined') return false
+	const appleMobileDevice = /iPad|iPhone|iPod/.test(navigator.userAgent)
+	const touchEnabledMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+	return appleMobileDevice || touchEnabledMac
+}
+
+function useIOSWebKit() {
+	return useSyncExternalStore(
+		() => () => undefined,
+		getIsIOSWebKitSnapshot,
+		() => false,
+	)
+}
 
 const ProjectFace = memo(function ProjectFace({
 	project,
@@ -60,6 +79,7 @@ const ProjectFace = memo(function ProjectFace({
 	width,
 	height,
 	channelWidth,
+	htmlYOffset,
 	isVisible,
 	sceneVisible,
 	reducedPerformance,
@@ -86,6 +106,7 @@ const ProjectFace = memo(function ProjectFace({
 		<group ref={faceRef} position={position} rotation={rotation}>
 			{(!reducedPerformance || isVisible) && <Html
 				transform
+				position={[0, htmlYOffset, 0]}
 				distanceFactor={htmlDistanceFactor}
 				pointerEvents="none"
 				wrapperClass="project-panel-html"
@@ -172,6 +193,7 @@ export function ProjectPanels({
 	sceneVisible: boolean
 }) {
 	const viewportWidth = useThree((state) => state.size.width)
+	const isIOSWebKit = useIOSWebKit()
 	const rasterDensity: 1 | 2 = reducedPerformance || viewportWidth <= MOBILE_RASTER_BREAKPOINT ? 1 : 2
 	const faceRefs = useRef<Array<THREE.Group | null>>([])
 	const faceVisibility = useRef(FACE_NORMALS.map(() => false))
@@ -270,6 +292,7 @@ export function ProjectPanels({
 						key={project.title}
 						project={project}
 						layout={PROJECT_LAYOUTS[index] ?? 'balanced'}
+						htmlYOffset={isIOSWebKit ? IOS_HTML_Y_OFFSET : 0}
 						isVisible={visibleFaces[index]}
 						sceneVisible={sceneVisible}
 						reducedPerformance={reducedPerformance}
