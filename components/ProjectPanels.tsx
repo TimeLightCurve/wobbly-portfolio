@@ -3,6 +3,7 @@
 import { Html } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import Image from 'next/image'
+import projectPreview from '../public/image3.jpg'
 import { memo, useMemo, useRef, useState, useSyncExternalStore, type RefCallback } from 'react'
 import * as THREE from 'three'
 import type { Project } from './projects'
@@ -16,9 +17,9 @@ type ProjectFaceProps = {
 	height: number
 	channelWidth: number
 	htmlOffset: [number, number, number]
+	imageXOffset: number
 	isVisible: boolean
 	sceneVisible: boolean
-	reducedPerformance: boolean
 	rasterDensity: 1 | 2
 	faceRef: RefCallback<THREE.Group>
 }
@@ -40,8 +41,10 @@ const FACE_NORMALS = [
 	new THREE.Vector3(-1, 0, 0),
 ] as const
 
-const FACE_SHOW_THRESHOLD = 0.68
-const FACE_HIDE_THRESHOLD = 0.80
+// Enter at a stricter angle than the exit angle. Reversing these values causes
+// the face to alternate every visibility update while it settles into place.
+const FACE_SHOW_THRESHOLD = 0.82
+const FACE_HIDE_THRESHOLD = 0.70
 const FACE_SHOW_DELAY = 0.4
 const FACE_SHOW_DURATION = 0.3
 const FACE_HIDE_DURATION = 0.1
@@ -80,9 +83,9 @@ const ProjectFace = memo(function ProjectFace({
 	height,
 	channelWidth,
 	htmlOffset,
+	imageXOffset,
 	isVisible,
 	sceneVisible,
-	reducedPerformance,
 	rasterDensity,
 	faceRef,
 }: ProjectFaceProps) {
@@ -104,7 +107,7 @@ const ProjectFace = memo(function ProjectFace({
 
 	return (
 		<group ref={faceRef} position={position} rotation={rotation}>
-			{(!reducedPerformance || isVisible) && <Html
+			<Html
 				transform
 				position={htmlOffset}
 				distanceFactor={htmlDistanceFactor}
@@ -137,12 +140,18 @@ const ProjectFace = memo(function ProjectFace({
 								WebkitBackfaceVisibility: 'hidden',
 							}}
 						>
-							<div className="project-panel__image self-s">
+							<div
+								className="project-panel__image self-s"
+								style={{ transform: `translate3d(${imageXOffset * cssPixelsPerWorldUnit}px, 0, 0)` }}
+							>
 								<Image
-									src="/image3.jpg"
+									src={projectPreview}
 									alt={`${project.title} preview`}
 									fill
 									sizes={imageSizes}
+									loading="eager"
+									decoding="sync"
+									placeholder="blur"
 									className="object-cover"
 								/>
 							</div>
@@ -174,7 +183,7 @@ const ProjectFace = memo(function ProjectFace({
 						</div>
 					</article>
 				</div>
-			</Html>}
+			</Html>
 		</group>
 	)
 })
@@ -289,6 +298,7 @@ export function ProjectPanels({
 				const htmlOffset: [number, number, number] = isIOSWebKit
 					? [face.channelWidth * 0.5, IOS_HTML_Y_OFFSET, 0]
 					: [0, 0, 0]
+				const imageXOffset = isIOSWebKit ? face.channelWidth : 0
 
 				return (
 					<ProjectFace
@@ -296,9 +306,9 @@ export function ProjectPanels({
 						project={project}
 						layout={PROJECT_LAYOUTS[index] ?? 'balanced'}
 						htmlOffset={htmlOffset}
+						imageXOffset={imageXOffset}
 						isVisible={visibleFaces[index]}
 						sceneVisible={sceneVisible}
-						reducedPerformance={reducedPerformance}
 						rasterDensity={rasterDensity}
 						faceRef={faceRefCallbacks[index]}
 						{...face}
