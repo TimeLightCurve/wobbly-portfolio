@@ -11,20 +11,32 @@ import { type SceneRoute } from './SceneRoute'
 export function PipelineAtmosphere({
 	scrollYProgress,
 	route,
+	reducedPerformance,
 }: {
 	scrollYProgress: MotionValue<number>
 	route: SceneRoute
+	reducedPerformance: boolean
 }) {
 	const getThreeState = useThree((state) => state.get)
 	const regularBackground = useMemo(() => new THREE.Color('#171828'), [])
 	const pipelineBackground = useMemo(() => new THREE.Color('#010102'), [])
 	const currentBackground = useMemo(() => new THREE.Color(), [])
+	const backdropMaterial = useRef<THREE.MeshStandardMaterial>(null)
 	const previousDarkness = useRef(Number.NaN)
+	const backdrop = useMemo(() => {
+		const bounds = new THREE.Box3().setFromPoints(route.curve.getPoints(96))
+		const boundingSphere = bounds.getBoundingSphere(new THREE.Sphere())
+		return {
+			center: boundingSphere.center,
+			radius: Math.max(80, boundingSphere.radius + 42),
+		}
+	}, [route])
 
 	useEffect(() => {
 		const scene = getThreeState().scene
 		const previousBackground = scene.background
 		const previousEnvironmentIntensity = scene.environmentIntensity
+		scene.background = null
 
 		return () => {
 			scene.background = previousBackground
@@ -42,11 +54,32 @@ export function PipelineAtmosphere({
 		if (Math.abs(darkness - previousDarkness.current) < 0.0001) return
 		previousDarkness.current = darkness
 		currentBackground.lerpColors(regularBackground, pipelineBackground, darkness)
-		scene.background = currentBackground
+		backdropMaterial.current?.color.copy(currentBackground)
 		scene.environmentIntensity = THREE.MathUtils.lerp(0.5, 0.018, darkness)
 	})
 
-	return null
+	return (
+		<mesh
+			position={backdrop.center}
+			renderOrder={-1000}
+			frustumCulled={false}
+		>
+			<sphereGeometry args={[
+				backdrop.radius,
+				reducedPerformance ? 20 : 32,
+				reducedPerformance ? 12 : 18,
+			]} />
+			<meshStandardMaterial
+				ref={backdropMaterial}
+				color={regularBackground}
+				side={THREE.BackSide}
+				metalness={0.04}
+				roughness={0.92}
+				envMapIntensity={0.16}
+				depthWrite={false}
+			/>
+		</mesh>
+	)
 }
 
 export function PipelineBloom({

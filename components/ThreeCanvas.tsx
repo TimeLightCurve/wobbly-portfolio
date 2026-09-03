@@ -5,7 +5,7 @@ import { Canvas } from '@react-three/fiber'
 import { useScroll } from 'motion/react'
 import { Suspense, useCallback, useMemo, useRef, type CSSProperties } from 'react'
 import * as THREE from 'three'
-import { useEvenIOSViewport, useScenePerformanceProfile } from './CanvasViewport'
+import { useScenePerformanceProfile } from './CanvasViewport'
 import { FlightStatements } from './FlightStatements'
 import { PipelineRoom } from './PipelineRoom'
 import { PipelineNarrative } from './PipelineNarrative'
@@ -30,7 +30,6 @@ const FALLBACK_LIGHT_POSITION: [number, number, number] = [4, 6, 5]
 export function ThreeCanvas() {
 	const { scrollYProgress } = useScroll()
 	const performanceProfile = useScenePerformanceProfile()
-	const iosViewport = useEvenIOSViewport()
 	// const audio = useSceneAudio(performanceProfile.conserveResources)
 	const anchorStore = useMemo(() => new ColumnAnchorStore(), [])
 	const sectionRef = useRef<HTMLElement>(null)
@@ -49,15 +48,6 @@ export function ThreeCanvas() {
 		'--desktop-canvas-height': `${(1500 + route.length * DESKTOP_SCROLL_VH_PER_ROUTE_UNIT).toFixed(3)}vh`,
 		'--mobile-canvas-height': `${(100 + route.length * MOBILE_SCROLL_VH_PER_ROUTE_UNIT).toFixed(3)}svh`,
 	}) as CSSProperties, [route.length])
-	const stickyViewportStyle = useMemo(() => ({
-		touchAction: 'pan-y',
-		...(iosViewport && {
-			width: `${iosViewport.width}px`,
-			height: `${iosViewport.height}px`,
-			marginInline: 'auto',
-		}),
-	}) as CSSProperties, [iosViewport])
-
 	const handleAnchorChange = useCallback((
 		columnIndex: number,
 		x: number,
@@ -74,7 +64,7 @@ export function ThreeCanvas() {
 			style={sectionHeightVariables}
 		>
 			<ScrollSectionSnap sectionRef={sectionRef} snapProgress={route.snapProgress} />
-			<div className="three-canvas-sticky sticky top-0 z-10 h-screen w-full" style={stickyViewportStyle}>
+			<div className="three-canvas-sticky sticky top-0 z-10 w-full">
 				<Canvas
 					camera={CANVAS_CAMERA}
 					dpr={performanceProfile.dpr}
@@ -83,7 +73,11 @@ export function ThreeCanvas() {
 					style={CANVAS_STYLE}
 				>
 					<ResponsiveCameraFov scrollYProgress={scrollYProgress} route={route} />
-					<PipelineAtmosphere scrollYProgress={scrollYProgress} route={route} />
+					<PipelineAtmosphere
+						scrollYProgress={scrollYProgress}
+						route={route}
+						reducedPerformance={performanceProfile.conserveResources}
+					/>
 					{/* <PointerAudioModulator
 						rigRef={audio.rigRef}
 						settings={audio.settings}

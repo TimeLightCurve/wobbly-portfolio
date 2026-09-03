@@ -307,6 +307,7 @@ export function Room({ onAnchorChange, /* onColumnMotion, */ reducedPerformance,
 	hideY: number
 }) {
   const { nodes } = useGLTF('/room4.glb') as unknown as GLTFResult
+  const viewportWidth = useThree((state) => state.size.width)
   const [sceneVisible, setSceneVisible] = useState(true)
   const sceneVisibleRef = useRef(true)
   const carrierPosition = useRef(new THREE.Vector3())
@@ -315,6 +316,11 @@ export function Room({ onAnchorChange, /* onColumnMotion, */ reducedPerformance,
   // const columnsEdges = useMemo(() => toInkEdges(nodes.columns.geometry), [nodes.columns.geometry])
   const liquidGlass = useMemo(() => createLiquidGlassMaterial(reducedPerformance), [reducedPerformance])
   const glassMaterial = liquidGlass.material
+  const roomScale = useMemo<[number, number, number]>(() => (
+    viewportWidth <= MOBILE_ROTATION_BREAKPOINT
+      ? [1.2, 1.3, 1.72]
+      : [1.2, 1.3, 1.2]
+  ), [viewportWidth])
   useFrame(() => {
     if (!pathCarrierRef.current) return
     pathCarrierRef.current.getWorldPosition(carrierPosition.current)
@@ -334,7 +340,7 @@ export function Room({ onAnchorChange, /* onColumnMotion, */ reducedPerformance,
     <group {...props} visible={sceneVisible} dispose={null}>
       <group>
         <group >
-          <mesh geometry={nodes.room.geometry} material={glassMaterial} castShadow receiveShadow scale={[1.2, 1.3, 1.2]} />
+          <mesh geometry={nodes.room.geometry} material={glassMaterial} castShadow receiveShadow scale={roomScale} />
           {/* <InkEdges edges={roomEdges} scale={[1.2, 1.3, 1.2]} /> */}
         </group>
 		<group position={[0, COLUMN_SYSTEM_OFFSET_Y, 0]}>
