@@ -17,7 +17,7 @@ type ProjectFaceProps = {
 	height: number
 	channelWidth: number
 	htmlOffset: [number, number, number]
-	imageXOffset: number
+	imageOffset: [number, number]
 	isVisible: boolean
 	sceneVisible: boolean
 	rasterDensity: 1 | 2
@@ -58,6 +58,7 @@ const MOBILE_RASTER_BREAKPOINT = 640
 // iOS WebKit offsets Drei's transformed DOM relative to its WebGL face.
 // Keep the correction in local model space so it follows every face rotation.
 const IOS_HTML_Y_OFFSET = 0.145
+const IOS_IMAGE_Y_OFFSET = 0.09
 
 function getIsIOSWebKitSnapshot() {
 	if (typeof navigator === 'undefined') return false
@@ -83,7 +84,7 @@ const ProjectFace = memo(function ProjectFace({
 	height,
 	channelWidth,
 	htmlOffset,
-	imageXOffset,
+	imageOffset,
 	isVisible,
 	sceneVisible,
 	rasterDensity,
@@ -142,7 +143,9 @@ const ProjectFace = memo(function ProjectFace({
 						>
 							<div
 								className="project-panel__image self-s"
-								style={{ transform: `translate3d(${imageXOffset * cssPixelsPerWorldUnit}px, 0, 0)` }}
+								style={{
+									transform: `translate3d(${imageOffset[0] * cssPixelsPerWorldUnit}px, ${-imageOffset[1] * cssPixelsPerWorldUnit}px, 0)`,
+								}}
 							>
 								<Image
 									src={projectPreview}
@@ -298,7 +301,9 @@ export function ProjectPanels({
 				const htmlOffset: [number, number, number] = isIOSWebKit
 					? [face.channelWidth * 0.5, IOS_HTML_Y_OFFSET, 0]
 					: [0, 0, 0]
-				const imageXOffset = isIOSWebKit ? face.channelWidth : 0
+				const imageOffset: [number, number] = isIOSWebKit
+					? [face.channelWidth * 0.5, IOS_IMAGE_Y_OFFSET]
+					: [0, 0]
 
 				return (
 					<ProjectFace
@@ -306,7 +311,7 @@ export function ProjectPanels({
 						project={project}
 						layout={PROJECT_LAYOUTS[index] ?? 'balanced'}
 						htmlOffset={htmlOffset}
-						imageXOffset={imageXOffset}
+						imageOffset={imageOffset}
 						isVisible={visibleFaces[index]}
 						sceneVisible={sceneVisible}
 						rasterDensity={rasterDensity}
