@@ -57,7 +57,7 @@ const BASE_CSS_PIXELS_PER_WORLD_UNIT = 400
 const MOBILE_RASTER_BREAKPOINT = 640
 // iOS WebKit offsets Drei's transformed DOM relative to its WebGL face.
 // Keep the correction in local model space so it follows every face rotation.
-const IOS_HTML_Y_OFFSET = 0.145
+const IOS_HTML_Y_OFFSET = 0.245
 const IOS_IMAGE_X_OFFSET_FACTOR = -0.5
 const IOS_IMAGE_Y_OFFSET = 0.285
 
