@@ -15,7 +15,7 @@ type ProjectFaceProps = {
 	width: number
 	height: number
 	channelWidth: number
-	htmlYOffset: number
+	htmlOffset: [number, number, number]
 	isVisible: boolean
 	sceneVisible: boolean
 	reducedPerformance: boolean
@@ -52,8 +52,8 @@ const FACE_SURFACE_GAP = 0.006
 
 const BASE_CSS_PIXELS_PER_WORLD_UNIT = 400
 const MOBILE_RASTER_BREAKPOINT = 640
-// WebKit places Drei's transformed DOM a little below its WebGL anchor.
-// Keep this correction in model space so it stays attached to every rotating face.
+// iOS WebKit offsets Drei's transformed DOM relative to its WebGL face.
+// Keep the correction in local model space so it follows every face rotation.
 const IOS_HTML_Y_OFFSET = 0.145
 
 function getIsIOSWebKitSnapshot() {
@@ -79,7 +79,7 @@ const ProjectFace = memo(function ProjectFace({
 	width,
 	height,
 	channelWidth,
-	htmlYOffset,
+	htmlOffset,
 	isVisible,
 	sceneVisible,
 	reducedPerformance,
@@ -106,7 +106,7 @@ const ProjectFace = memo(function ProjectFace({
 		<group ref={faceRef} position={position} rotation={rotation}>
 			{(!reducedPerformance || isVisible) && <Html
 				transform
-				position={[0, htmlYOffset, 0]}
+				position={htmlOffset}
 				distanceFactor={htmlDistanceFactor}
 				pointerEvents="none"
 				wrapperClass="project-panel-html"
@@ -286,13 +286,16 @@ export function ProjectPanels({
 			{projects.slice(0, 4).map((project, index) => {
 				const face = faces[index]
 				if (!face) return null
+				const htmlOffset: [number, number, number] = isIOSWebKit
+					? [face.channelWidth * 0.5, IOS_HTML_Y_OFFSET, 0]
+					: [0, 0, 0]
 
 				return (
 					<ProjectFace
 						key={project.title}
 						project={project}
 						layout={PROJECT_LAYOUTS[index] ?? 'balanced'}
-						htmlYOffset={isIOSWebKit ? IOS_HTML_Y_OFFSET : 0}
+						htmlOffset={htmlOffset}
 						isVisible={visibleFaces[index]}
 						sceneVisible={sceneVisible}
 						reducedPerformance={reducedPerformance}
