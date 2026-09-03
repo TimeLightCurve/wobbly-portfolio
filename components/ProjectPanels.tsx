@@ -59,7 +59,7 @@ const MOBILE_RASTER_BREAKPOINT = 640
 // Keep the correction in local model space so it follows every face rotation.
 const IOS_HTML_Y_OFFSET = 0.145
 const IOS_IMAGE_X_OFFSET_FACTOR = -0.5
-const IOS_IMAGE_Y_OFFSET = 0.145
+const IOS_IMAGE_Y_OFFSET = 0.155
 
 function getIsIOSWebKitSnapshot() {
 	if (typeof navigator === 'undefined') return false
