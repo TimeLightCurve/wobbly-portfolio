@@ -58,8 +58,8 @@ const MOBILE_RASTER_BREAKPOINT = 640
 // iOS WebKit offsets Drei's transformed DOM relative to its WebGL face.
 // Keep the correction in local model space so it follows every face rotation.
 const IOS_HTML_Y_OFFSET = 0.145
-const IOS_IMAGE_X_OFFSET_FACTOR = -0.5
-const IOS_IMAGE_Y_OFFSET = 0.09
+const IOS_IMAGE_X_OFFSET_FACTOR = -1
+const IOS_IMAGE_Y_OFFSET = 0.14
 
 function getIsIOSWebKitSnapshot() {
 	if (typeof navigator === 'undefined') return false
